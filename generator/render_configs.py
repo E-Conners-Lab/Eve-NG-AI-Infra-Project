@@ -177,6 +177,12 @@ def _build_context(spec: dict, device: dict, site_key: str, section: str) -> dic
     ctx["cidr_to_wildcard"] = _cidr_to_wildcard
     ctx["cidr_to_subnet"] = _cidr_to_subnet
 
+    # Management IP from bootstrap config
+    from scripts.bootstrap_config import get_mgmt_ips
+
+    mgmt_ips = get_mgmt_ips()
+    ctx["mgmt_ip"] = mgmt_ips.get(device["name"], "")
+
     # Build a global device-name-to-ASN lookup so templates can resolve peer ASNs
     # from the spec instead of hardcoding or deriving from loop position.
     device_asn_map = _build_device_asn_map(spec)

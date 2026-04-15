@@ -1,0 +1,65 @@
+{"action": "push_session_start", "target": "all", "device_filter": "", "dry_run": false, "timestamp": "2026-04-15T17:09:27Z"}
+{"action": "push_start", "device": "dc-border-1", "platform": "arista_eos", "config_file": "dc-border-1.cfg", "config_lines": 69, "mgmt_ip": "192.168.68.114", "timestamp": "2026-04-15T17:09:27Z"}
+{"action": "ssh_connected", "device": "dc-border-1", "timestamp": "2026-04-15T17:09:28Z"}
+{"action": "backup_saved", "device": "dc-border-1", "backup_lines": 56, "timestamp": "2026-04-15T17:09:28Z"}
+{"action": "push_success", "device": "dc-border-1", "config_lines": 69, "verify_snippet": "Hostname: dc-border-1\nFQDN:     dc-border-1", "timestamp": "2026-04-15T17:09:29Z"}
+{"action": "push_start", "device": "dc-border-2", "platform": "arista_eos", "config_file": "dc-border-2.cfg", "config_lines": 69, "mgmt_ip": "192.168.68.115", "timestamp": "2026-04-15T17:09:29Z"}
+{"action": "ssh_connected", "device": "dc-border-2", "timestamp": "2026-04-15T17:09:30Z"}
+{"action": "backup_saved", "device": "dc-border-2", "backup_lines": 56, "timestamp": "2026-04-15T17:09:30Z"}
+{"action": "push_success", "device": "dc-border-2", "config_lines": 69, "verify_snippet": "Hostname: dc-border-2\nFQDN:     dc-border-2", "timestamp": "2026-04-15T17:09:31Z"}
+{"action": "push_start", "device": "dc-leaf-1", "platform": "arista_eos", "config_file": "dc-leaf-1.cfg", "config_lines": 89, "mgmt_ip": "192.168.68.112", "timestamp": "2026-04-15T17:09:31Z"}
+{"action": "ssh_connected", "device": "dc-leaf-1", "timestamp": "2026-04-15T17:09:32Z"}
+{"action": "backup_saved", "device": "dc-leaf-1", "backup_lines": 56, "timestamp": "2026-04-15T17:09:32Z"}
+{"action": "push_success", "device": "dc-leaf-1", "config_lines": 89, "verify_snippet": "Hostname: dc-leaf-1\nFQDN:     dc-leaf-1", "timestamp": "2026-04-15T17:09:33Z"}
+{"action": "push_start", "device": "dc-leaf-2", "platform": "arista_eos", "config_file": "dc-leaf-2.cfg", "config_lines": 89, "mgmt_ip": "192.168.68.113", "timestamp": "2026-04-15T17:09:33Z"}
+{"action": "ssh_connected", "device": "dc-leaf-2", "timestamp": "2026-04-15T17:09:34Z"}
+{"action": "backup_saved", "device": "dc-leaf-2", "backup_lines": 56, "timestamp": "2026-04-15T17:09:34Z"}
+{"action": "push_success", "device": "dc-leaf-2", "config_lines": 89, "verify_snippet": "Hostname: dc-leaf-2\nFQDN:     dc-leaf-2", "timestamp": "2026-04-15T17:09:35Z"}
+{"action": "push_start", "device": "dc-spine-1", "platform": "arista_eos", "config_file": "dc-spine-1.cfg", "config_lines": 93, "mgmt_ip": "192.168.68.110", "timestamp": "2026-04-15T17:09:35Z"}
+{"action": "ssh_connected", "device": "dc-spine-1", "timestamp": "2026-04-15T17:09:36Z"}
+{"action": "backup_saved", "device": "dc-spine-1", "backup_lines": 56, "timestamp": "2026-04-15T17:09:36Z"}
+{"action": "push_success", "device": "dc-spine-1", "config_lines": 93, "verify_snippet": "Hostname: dc-spine-1\nFQDN:     dc-spine-1", "timestamp": "2026-04-15T17:09:38Z"}
+{"action": "push_start", "device": "dc-spine-2", "platform": "arista_eos", "config_file": "dc-spine-2.cfg", "config_lines": 93, "mgmt_ip": "192.168.68.111", "timestamp": "2026-04-15T17:09:38Z"}
+{"action": "ssh_connected", "device": "dc-spine-2", "timestamp": "2026-04-15T17:09:38Z"}
+{"action": "backup_saved", "device": "dc-spine-2", "backup_lines": 56, "timestamp": "2026-04-15T17:09:39Z"}
+{"action": "push_success", "device": "dc-spine-2", "config_lines": 93, "verify_snippet": "Hostname: dc-spine-2\nFQDN:     dc-spine-2", "timestamp": "2026-04-15T17:09:40Z"}
+{"action": "push_start", "device": "br-ce-1", "platform": "cisco_iosxe", "config_file": "br-ce-1.cfg", "config_lines": 49, "mgmt_ip": "192.168.68.123", "timestamp": "2026-04-15T17:09:40Z"}
+{"action": "ssh_connected", "device": "br-ce-1", "timestamp": "2026-04-15T17:09:41Z"}
+{"action": "backup_saved", "device": "br-ce-1", "backup_lines": 213, "timestamp": "2026-04-15T17:09:41Z"}
+{"action": "push_success", "device": "br-ce-1", "config_lines": 49, "verify_snippet": "hostname br-ce-1", "timestamp": "2026-04-15T17:09:45Z"}
+{"action": "push_start", "device": "dr-leaf-1", "platform": "arista_eos", "config_file": "dr-leaf-1.cfg", "config_lines": 70, "mgmt_ip": "192.168.68.125", "timestamp": "2026-04-15T17:09:45Z"}
+{"action": "ssh_connected", "device": "dr-leaf-1", "timestamp": "2026-04-15T17:09:45Z"}
+{"action": "backup_saved", "device": "dr-leaf-1", "backup_lines": 56, "timestamp": "2026-04-15T17:09:45Z"}
+{"action": "push_success", "device": "dr-leaf-1", "config_lines": 70, "verify_snippet": "Hostname: dr-leaf-1\nFQDN:     dr-leaf-1", "timestamp": "2026-04-15T17:09:47Z"}
+{"action": "push_start", "device": "dr-leaf-2", "platform": "arista_eos", "config_file": "dr-leaf-2.cfg", "config_lines": 69, "mgmt_ip": "192.168.68.126", "timestamp": "2026-04-15T17:09:47Z"}
+{"action": "ssh_connected", "device": "dr-leaf-2", "timestamp": "2026-04-15T17:09:47Z"}
+{"action": "backup_saved", "device": "dr-leaf-2", "backup_lines": 56, "timestamp": "2026-04-15T17:09:47Z"}
+{"action": "push_success", "device": "dr-leaf-2", "config_lines": 69, "verify_snippet": "Hostname: dr-leaf-2\nFQDN:     dr-leaf-2", "timestamp": "2026-04-15T17:09:48Z"}
+{"action": "push_start", "device": "dc-ce-1", "platform": "cisco_iosxe", "config_file": "dc-ce-1.cfg", "config_lines": 64, "mgmt_ip": "192.168.68.120", "timestamp": "2026-04-15T17:09:48Z"}
+{"action": "ssh_connected", "device": "dc-ce-1", "timestamp": "2026-04-15T17:09:49Z"}
+{"action": "backup_saved", "device": "dc-ce-1", "backup_lines": 219, "timestamp": "2026-04-15T17:09:49Z"}
+{"action": "push_success", "device": "dc-ce-1", "config_lines": 64, "verify_snippet": "hostname dc-ce-1", "timestamp": "2026-04-15T17:09:54Z"}
+{"action": "push_start", "device": "dr-ce-1", "platform": "cisco_iosxe", "config_file": "dr-ce-1.cfg", "config_lines": 64, "mgmt_ip": "192.168.68.129", "timestamp": "2026-04-15T17:09:54Z"}
+{"action": "ssh_connected", "device": "dr-ce-1", "timestamp": "2026-04-15T17:09:54Z"}
+{"action": "backup_saved", "device": "dr-ce-1", "backup_lines": 219, "timestamp": "2026-04-15T17:09:54Z"}
+{"action": "push_success", "device": "dr-ce-1", "config_lines": 64, "verify_snippet": "hostname dr-ce-1", "timestamp": "2026-04-15T17:09:59Z"}
+{"action": "push_start", "device": "sp-pe-1", "platform": "cisco_iosxe", "config_file": "sp-pe-1.cfg", "config_lines": 59, "mgmt_ip": "192.168.68.121", "timestamp": "2026-04-15T17:09:59Z"}
+{"action": "ssh_connected", "device": "sp-pe-1", "timestamp": "2026-04-15T17:09:59Z"}
+{"action": "backup_saved", "device": "sp-pe-1", "backup_lines": 219, "timestamp": "2026-04-15T17:09:59Z"}
+{"action": "push_success", "device": "sp-pe-1", "config_lines": 59, "verify_snippet": "hostname sp-pe-1", "timestamp": "2026-04-15T17:10:04Z"}
+{"action": "push_start", "device": "sp-pe-2", "platform": "cisco_iosxe", "config_file": "sp-pe-2.cfg", "config_lines": 59, "mgmt_ip": "192.168.68.122", "timestamp": "2026-04-15T17:10:04Z"}
+{"action": "ssh_connected", "device": "sp-pe-2", "timestamp": "2026-04-15T17:10:06Z"}
+{"action": "backup_saved", "device": "sp-pe-2", "backup_lines": 219, "timestamp": "2026-04-15T17:10:06Z"}
+{"action": "push_success", "device": "sp-pe-2", "config_lines": 59, "verify_snippet": "hostname sp-pe-2", "timestamp": "2026-04-15T17:10:11Z"}
+{"action": "push_start", "device": "dc-fw-1", "platform": "fortinet_fortios", "config_file": "dc-fw-1.cfg", "config_lines": 85, "mgmt_ip": "192.168.68.118", "timestamp": "2026-04-15T17:10:11Z"}
+{"action": "ssh_connected", "device": "dc-fw-1", "timestamp": "2026-04-15T17:10:12Z"}
+{"action": "push_error", "device": "dc-fw-1", "error": "ScrapliConnectionError: encountered EOF reading from transport; typically means the device closed the connection", "timestamp": "2026-04-15T17:10:42Z"}
+{"action": "push_start", "device": "dc-fw-2", "platform": "fortinet_fortios", "config_file": "dc-fw-2.cfg", "config_lines": 85, "mgmt_ip": "192.168.68.119", "timestamp": "2026-04-15T17:10:42Z"}
+{"action": "push_error", "device": "dc-fw-2", "error": "ScrapliConnectionNotOpened: timed out trying to open socket to 192.168.68.119 on port 22 for address family AF_INET", "timestamp": "2026-04-15T17:10:57Z"}
+{"action": "push_start", "device": "dr-fw-1", "platform": "fortinet_fortios", "config_file": "dr-fw-1.cfg", "config_lines": 71, "mgmt_ip": "192.168.68.127", "timestamp": "2026-04-15T17:10:57Z"}
+{"action": "ssh_connected", "device": "dr-fw-1", "timestamp": "2026-04-15T17:10:57Z"}
+{"action": "push_error", "device": "dr-fw-1", "error": "ScrapliConnectionError: encountered EOF reading from transport; typically means the device closed the connection", "timestamp": "2026-04-15T17:11:27Z"}
+{"action": "push_start", "device": "dr-fw-2", "platform": "fortinet_fortios", "config_file": "dr-fw-2.cfg", "config_lines": 71, "mgmt_ip": "192.168.68.128", "timestamp": "2026-04-15T17:11:27Z"}
+{"action": "ssh_connected", "device": "dr-fw-2", "timestamp": "2026-04-15T17:11:31Z"}
+{"action": "push_error", "device": "dr-fw-2", "error": "ScrapliConnectionError: encountered EOF reading from transport; typically means the device closed the connection", "timestamp": "2026-04-15T17:12:01Z"}
+{"action": "push_session_end", "success": 13, "fail": 4, "timestamp": "2026-04-15T17:12:01Z"}

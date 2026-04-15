@@ -41,7 +41,7 @@ generate-spec:
 
 # Render per-device configs from spec
 generate-configs:
-	python generator/render_configs.py
+	python -m generator.render_configs
 
 # Validate rendered configs (run config generation tests)
 validate-configs:

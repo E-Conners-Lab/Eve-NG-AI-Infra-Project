@@ -54,4 +54,9 @@ router bgp {{ asn }}
       neighbor {{ ip_no_mask(spine.loopback0) }} activate
 {% endfor %}
 !
+{% if mgmt_ip %}
+interface Management1
+   ip address {{ mgmt_ip }}/22
+!
+{% endif %}
 end

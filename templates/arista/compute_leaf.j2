@@ -103,4 +103,9 @@ router bgp {{ asn }}
       redistribute learned
 {% endfor %}
 !
+{% if mgmt_ip %}
+interface Management1
+   ip address {{ mgmt_ip }}/22
+!
+{% endif %}
 end

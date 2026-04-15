@@ -300,17 +300,16 @@ class TestFortiGateConfig:
 # Test 7: No hardcoded IPs
 # ---------------------------------------------------------------------------
 class TestNoHardcodedValues:
-    """No rendered config should contain IPs that don't come from the spec."""
+    """No rendered config should contain IPs that don't come from the spec or bootstrap config."""
 
-    def _collect_all_ips_from_spec(self, spec: dict) -> set[str]:
-        """Collect every IP address mentioned anywhere in the spec."""
-        ips = set()
+    def _collect_all_valid_ips(self, spec: dict) -> set[str]:
+        """Collect every IP from spec + bootstrap config (both are valid sources)."""
+        import re
+
+        ips: set[str] = set()
 
         def _extract_ips(obj: object) -> None:
             if isinstance(obj, str):
-                # Match IP-like patterns
-                import re
-
                 for match in re.findall(r"\d+\.\d+\.\d+\.\d+", obj):
                     ips.add(match)
             elif isinstance(obj, dict):
@@ -321,6 +320,13 @@ class TestNoHardcodedValues:
                     _extract_ips(item)
 
         _extract_ips(spec)
+
+        # Also include management IPs from bootstrap config
+        from scripts.bootstrap_config import get_mgmt_ips
+
+        for mgmt_ip in get_mgmt_ips().values():
+            ips.add(mgmt_ip)
+
         return ips
 
     def _collect_all_ips_from_config(self, config: str) -> set[str]:
@@ -332,7 +338,7 @@ class TestNoHardcodedValues:
     def test_spine_no_hardcoded_ips(self, spec: dict) -> None:
         """dc-spine-1 config must not contain IPs absent from the spec."""
         config = _render_device(spec, "dc-spine-1")
-        spec_ips = self._collect_all_ips_from_spec(spec)
+        spec_ips = self._collect_all_valid_ips(spec)
         config_ips = self._collect_all_ips_from_config(config)
         # Allow well-known addresses (0.0.0.0, 255.255.255.255, etc.)
         well_known = self._well_known_ips()
@@ -342,7 +348,7 @@ class TestNoHardcodedValues:
     def test_leaf_no_hardcoded_ips(self, spec: dict) -> None:
         """dc-leaf-1 config must not contain IPs absent from the spec."""
         config = _render_device(spec, "dc-leaf-1")
-        spec_ips = self._collect_all_ips_from_spec(spec)
+        spec_ips = self._collect_all_valid_ips(spec)
         config_ips = self._collect_all_ips_from_config(config)
         well_known = self._well_known_ips()
         unexpected = config_ips - spec_ips - well_known
@@ -351,7 +357,7 @@ class TestNoHardcodedValues:
     def test_fortigate_no_hardcoded_ips(self, spec: dict) -> None:
         """dc-fw-1 config must not contain IPs absent from the spec."""
         config = _render_device(spec, "dc-fw-1")
-        spec_ips = self._collect_all_ips_from_spec(spec)
+        spec_ips = self._collect_all_valid_ips(spec)
         config_ips = self._collect_all_ips_from_config(config)
         well_known = self._well_known_ips()
         unexpected = config_ips - spec_ips - well_known
@@ -360,7 +366,7 @@ class TestNoHardcodedValues:
     def test_cisco_no_hardcoded_ips(self, spec: dict) -> None:
         """br-ce-1 config must not contain IPs absent from the spec."""
         config = _render_device(spec, "br-ce-1")
-        spec_ips = self._collect_all_ips_from_spec(spec)
+        spec_ips = self._collect_all_valid_ips(spec)
         config_ips = self._collect_all_ips_from_config(config)
         well_known = self._well_known_ips()
         unexpected = config_ips - spec_ips - well_known

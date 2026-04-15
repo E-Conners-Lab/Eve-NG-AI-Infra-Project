@@ -37,4 +37,11 @@ router bgp {{ asn }}
   network {{ loopback0_ip }} mask {{ cidr_to_subnet(loopback0_mask | int) }}
  exit-address-family
 !
+{% if mgmt_ip %}
+interface GigabitEthernet5
+ description Management
+ ip address {{ mgmt_ip }} 255.255.252.0
+ no shutdown
+!
+{% endif %}
 end

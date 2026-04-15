@@ -27,6 +27,16 @@ config system interface
 end
 
 {% endfor %}
+{% if mgmt_ip %}
+config system interface
+    edit "port6"
+        set ip {{ mgmt_ip }} 255.255.252.0
+        set allowaccess ping https ssh
+        set description "Management"
+    next
+end
+
+{% endif %}
 {% for zone in zones %}
 config system zone
     edit "{{ zone.name }}"
