@@ -1,0 +1,6 @@
+{"action": "push_session_start", "target": "all", "device_filter": "dr-fw-2", "dry_run": false, "timestamp": "2026-04-15T17:49:46Z"}
+{"action": "push_start", "device": "dr-fw-2", "platform": "fortinet_fortios", "config_file": "dr-fw-2.cfg", "config_lines": 71, "mgmt_ip": "192.168.68.128", "timestamp": "2026-04-15T17:49:46Z"}
+{"action": "push_start", "device": "dr-fw-2", "platform": "fortinet_fortios", "config_lines": 71, "mgmt_ip": "192.168.68.128", "transport": "netmiko", "timestamp": "2026-04-15T17:49:46Z"}
+{"action": "ssh_connected", "device": "dr-fw-2", "timestamp": "2026-04-15T17:49:47Z"}
+{"action": "push_success", "device": "dr-fw-2", "config_lines": 60, "verify_snippet": "Hostname: dr-fw-2", "timestamp": "2026-04-15T17:49:50Z"}
+{"action": "push_session_end", "success": 1, "fail": 0, "timestamp": "2026-04-15T17:49:50Z"}

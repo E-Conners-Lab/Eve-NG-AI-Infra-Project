@@ -1,0 +1,6 @@
+{"action": "push_session_start", "target": "all", "device_filter": "dc-fw-2", "dry_run": false, "timestamp": "2026-04-15T17:49:38Z"}
+{"action": "push_start", "device": "dc-fw-2", "platform": "fortinet_fortios", "config_file": "dc-fw-2.cfg", "config_lines": 85, "mgmt_ip": "192.168.68.119", "timestamp": "2026-04-15T17:49:38Z"}
+{"action": "push_start", "device": "dc-fw-2", "platform": "fortinet_fortios", "config_lines": 85, "mgmt_ip": "192.168.68.119", "transport": "netmiko", "timestamp": "2026-04-15T17:49:38Z"}
+{"action": "ssh_connected", "device": "dc-fw-2", "timestamp": "2026-04-15T17:49:39Z"}
+{"action": "push_success", "device": "dc-fw-2", "config_lines": 73, "verify_snippet": "Hostname: dc-fw-2", "timestamp": "2026-04-15T17:49:41Z"}
+{"action": "push_session_end", "success": 1, "fail": 0, "timestamp": "2026-04-15T17:49:41Z"}

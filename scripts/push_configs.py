@@ -19,6 +19,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import yaml
+from netmiko import ConnectHandler
+from netmiko.exceptions import NetmikoAuthenticationException, NetmikoTimeoutException
 from scrapli import Scrapli
 from scrapli.exceptions import ScrapliException
 
@@ -69,19 +71,92 @@ def _get_scrapli_connection(
             timeout_ops=30,
         )
 
-    if platform == "fortinet_fortios":
-        # FortiGate requires keyboard-interactive auth — paramiko handles this
-        return Scrapli(
-            host=mgmt_ip,
-            auth_username=username,
-            auth_password=password,
-            auth_strict_key=False,
-            platform="fortinet_fortios",
-            transport="paramiko",
-            timeout_ops=30,
-        )
-
+    # FortiGate uses Netmiko (handled separately in _push_fortios_config)
     return None
+
+
+def _push_fortios_config(
+    device_name: str,
+    config_text: str,
+    mgmt_ip: str,
+    username: str,
+    password: str,
+    log_file: Path,
+) -> bool:
+    """Push config to a FortiGate device using Netmiko.
+
+    Netmiko handles FortiOS keyboard-interactive auth and config mode natively.
+    """
+    _gait_log(
+        log_file,
+        {
+            "action": "push_start",
+            "device": device_name,
+            "platform": "fortinet_fortios",
+            "config_lines": len(config_text.splitlines()),
+            "mgmt_ip": mgmt_ip,
+            "transport": "netmiko",
+        },
+    )
+
+    try:
+        conn = ConnectHandler(
+            device_type="fortinet",
+            host=mgmt_ip,
+            username=username,
+            password=password,
+            timeout=15,
+        )
+        _gait_log(log_file, {"action": "ssh_connected", "device": device_name})
+
+        # Filter out comment lines and send config
+        clean_lines = [
+            line
+            for line in config_text.splitlines()
+            if line.strip() and not line.strip().startswith("###")
+        ]
+        conn.send_config_set(clean_lines, cmd_verify=False)
+
+        # Verify
+        verify = conn.send_command("get system status | grep Hostname")
+        conn.disconnect()
+
+        _gait_log(
+            log_file,
+            {
+                "action": "push_success",
+                "device": device_name,
+                "config_lines": len(clean_lines),
+                "verify_snippet": verify.strip()[:100],
+            },
+        )
+        print(f"  {device_name}: OK ({len(clean_lines)} lines)")
+        return True
+
+    except (NetmikoAuthenticationException, NetmikoTimeoutException) as e:
+        error_msg = f"{type(e).__name__}: {e}"
+        print(f"  {device_name}: ERROR — {error_msg}")
+        _gait_log(
+            log_file,
+            {
+                "action": "push_error",
+                "device": device_name,
+                "error": error_msg,
+            },
+        )
+        return False
+    except Exception as e:
+        error_msg = f"{type(e).__name__}: {e}"
+        print(f"  {device_name}: ERROR — {error_msg}")
+        _gait_log(
+            log_file,
+            {
+                "action": "push_error",
+                "device": device_name,
+                "error": error_msg,
+            },
+        )
+        return False
 
 
 def push_config_to_device(
@@ -133,6 +208,10 @@ def push_config_to_device(
         )
         _gait_log(log_file, {"action": "push_dry_run", "device": device_name})
         return True
+
+    # FortiGate uses Netmiko (handles keyboard-interactive auth + config mode)
+    if platform == "fortinet_fortios":
+        return _push_fortios_config(device_name, config_text, mgmt_ip, username, password, log_file)
 
     conn = _get_scrapli_connection(device_name, platform, mgmt_ip, username, password)
     if not conn:

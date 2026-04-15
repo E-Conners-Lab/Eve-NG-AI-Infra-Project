@@ -1,0 +1,4 @@
+{"action": "push_session_start", "target": "all", "device_filter": "dc-fw-2", "dry_run": false, "timestamp": "2026-04-15T17:42:45Z"}
+{"action": "push_start", "device": "dc-fw-2", "platform": "fortinet_fortios", "config_file": "dc-fw-2.cfg", "config_lines": 85, "mgmt_ip": "192.168.68.119", "timestamp": "2026-04-15T17:42:45Z"}
+{"action": "push_error", "device": "dc-fw-2", "error": "ScrapliConnectionError: encountered EOF reading from transport; typically means the device closed the connection", "timestamp": "2026-04-15T17:43:19Z"}
+{"action": "push_session_end", "success": 0, "fail": 1, "timestamp": "2026-04-15T17:43:19Z"}
