@@ -1,0 +1,6 @@
+{"action": "push_session_start", "target": "all", "device_filter": "sp-pe-2", "dry_run": false, "timestamp": "2026-04-15T07:35:51Z"}
+{"action": "push_start", "device": "sp-pe-2", "platform": "cisco_iosxe", "config_file": "sp-pe-2.cfg", "config_lines": 54, "mgmt_ip": "192.168.68.122", "timestamp": "2026-04-15T07:35:51Z"}
+{"action": "ssh_connected", "device": "sp-pe-2", "timestamp": "2026-04-15T07:35:51Z"}
+{"action": "backup_saved", "device": "sp-pe-2", "backup_lines": 207, "timestamp": "2026-04-15T07:35:51Z"}
+{"action": "push_success", "device": "sp-pe-2", "config_lines": 54, "verify_snippet": "hostname sp-pe-2", "timestamp": "2026-04-15T07:35:56Z"}
+{"action": "push_session_end", "success": 1, "fail": 0, "timestamp": "2026-04-15T07:35:56Z"}

@@ -1,0 +1,6 @@
+{"action": "push_session_start", "target": "all", "device_filter": "br-ce-1", "dry_run": false, "timestamp": "2026-04-15T07:33:59Z"}
+{"action": "push_start", "device": "br-ce-1", "platform": "cisco_iosxe", "config_file": "br-ce-1.cfg", "config_lines": 44, "mgmt_ip": "192.168.68.123", "timestamp": "2026-04-15T07:33:59Z"}
+{"action": "ssh_connected", "device": "br-ce-1", "timestamp": "2026-04-15T07:34:00Z"}
+{"action": "backup_saved", "device": "br-ce-1", "backup_lines": 194, "timestamp": "2026-04-15T07:34:00Z"}
+{"action": "push_success", "device": "br-ce-1", "config_lines": 44, "verify_snippet": "hostname br-ce-1", "timestamp": "2026-04-15T07:34:05Z"}
+{"action": "push_session_end", "success": 1, "fail": 0, "timestamp": "2026-04-15T07:34:05Z"}

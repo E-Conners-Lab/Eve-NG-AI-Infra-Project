@@ -5,21 +5,6 @@ config system global
     set hostname "{{ hostname }}"
 end
 
-{% for iface in interfaces %}
-config system interface
-    edit "{{ iface.name }}"
-{% if iface.get('ipv4') %}
-        set ip {{ ip_no_mask(iface.ipv4) }} {{ cidr_to_subnet(ip_mask(iface.ipv4) | int) }}
-{% endif %}
-        set allowaccess ping https ssh
-        set description "{{ iface.description | default('') }}"
-{% for zone in zones if iface.name in zone.get('interfaces', []) %}
-        set zone "{{ zone.name }}"
-{% endfor %}
-    next
-end
-
-{% endfor %}
 config system ha
     set mode a-p
     set group-id {{ ha_group_id }}
@@ -30,11 +15,27 @@ config system ha
     set override disable
 end
 
+{% for iface in interfaces %}
+config system interface
+    edit "{{ iface.name }}"
+{% if iface.get('ipv4') %}
+        set ip {{ ip_no_mask(iface.ipv4) }} {{ cidr_to_subnet(ip_mask(iface.ipv4) | int) }}
+{% endif %}
+        set allowaccess ping https ssh
+        set description "{{ iface.description | default('') }}"
+    next
+end
+
+{% endfor %}
 {% for zone in zones %}
 config system zone
     edit "{{ zone.name }}"
         set intrazone allow
         set description "{{ zone.type }} zone"
+{% if zone.get('interfaces') %}
+        set interface{% for zif in zone.interfaces %} "{{ zif }}"{% endfor %}
+
+{% endif %}
     next
 end
 
@@ -47,9 +48,11 @@ config firewall policy
         set dstintf "{{ policy.destination_zone }}"
         set srcaddr "all"
         set dstaddr "all"
-        set action {{ policy.action }}
+{% set action_map = {'allow': 'accept', 'deny': 'deny', 'inspect': 'accept'} %}
+        set action {{ action_map.get(policy.action, policy.action) }}
 {% if policy.get('services') %}
-        set service{% for svc in policy.services %} "{{ svc }}"{% endfor %}
+{% set svc_map = {'tcp/443': 'HTTPS', 'tcp/80': 'HTTP', 'tcp/22': 'SSH', 'icmp': 'ALL_ICMP', 'tcp/53': 'DNS', 'udp/53': 'DNS'} %}
+        set service{% for svc in policy.services %} "{{ svc_map.get(svc, svc) }}"{% endfor %}
 
 {% endif %}
         set schedule "always"
@@ -58,4 +61,3 @@ config firewall policy
 end
 
 {% endfor %}
-end

@@ -24,12 +24,14 @@ router bgp {{ asn }}
  no bgp default ipv4-unicast
  !
 {% for iface in interfaces %}
- neighbor {{ peer_ip(iface) }} remote-as remote-as-from-spec
+{% if iface.get('ipv4') %}
+ neighbor {{ peer_ip(iface) }} remote-as {{ device_asn.get(iface.peer, asn) }}
  neighbor {{ peer_ip(iface) }} description {{ iface.peer | default('') }}
+{% endif %}
 {% endfor %}
  !
  address-family ipv4
-{% for iface in interfaces %}
+{% for iface in interfaces if iface.get('ipv4') %}
   neighbor {{ peer_ip(iface) }} activate
 {% endfor %}
   network {{ loopback0_ip }} mask {{ cidr_to_subnet(loopback0_mask | int) }}

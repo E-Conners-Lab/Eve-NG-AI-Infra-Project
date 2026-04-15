@@ -1,0 +1,8 @@
+{"action": "push_session_start", "target": "all", "device_filter": "dc-fw-2", "dry_run": false, "timestamp": "2026-04-15T07:36:39Z"}
+{"action": "push_start", "device": "dc-fw-2", "platform": "fortinet_fortios", "config_file": "dc-fw-2.cfg", "config_lines": 78, "mgmt_ip": "192.168.68.119", "timestamp": "2026-04-15T07:36:39Z"}
+{"action": "push_error", "device": "dc-fw-2", "error": "ScrapliAuthenticationFailed: all authentication methods failed", "timestamp": "2026-04-15T07:36:39Z"}
+{"action": "push_session_end", "success": 0, "fail": 1, "timestamp": "2026-04-15T07:36:39Z"}
+{"action": "push_session_start", "target": "all", "device_filter": "dr-fw-1", "dry_run": false, "timestamp": "2026-04-15T07:36:39Z"}
+{"action": "push_start", "device": "dr-fw-1", "platform": "fortinet_fortios", "config_file": "dr-fw-1.cfg", "config_lines": 64, "mgmt_ip": "192.168.68.127", "timestamp": "2026-04-15T07:36:39Z"}
+{"action": "push_error", "device": "dr-fw-1", "error": "ScrapliAuthenticationFailed: all authentication methods failed", "timestamp": "2026-04-15T07:36:40Z"}
+{"action": "push_session_end", "success": 0, "fail": 1, "timestamp": "2026-04-15T07:36:40Z"}

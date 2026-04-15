@@ -192,8 +192,13 @@ def push_config_to_device(
                 return False
 
         elif platform == "cisco_iosxe":
-            # IOS-XE: send_configs enters config mode automatically
-            result = conn.send_configs(config_lines)
+            # IOS-XE: filter out comments, blank lines, and 'end' before sending
+            clean_lines = [
+                line
+                for line in config_lines
+                if line.strip() and not line.strip().startswith("!") and line.strip() != "end"
+            ]
+            result = conn.send_configs(clean_lines)
             if result.failed:
                 _gait_log(
                     log_file,
