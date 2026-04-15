@@ -1,5 +1,6 @@
 """NetBox-to-YAML spec generator.
 
+
 Queries the NetBox REST API via pynetbox and produces a declarative YAML spec
 matching the AI Infrastructure Lab JSON schema.
 
@@ -12,6 +13,7 @@ Usage:
 
 from __future__ import annotations
 
+import logging
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -19,6 +21,8 @@ from pathlib import Path
 import yaml
 
 # Site slugs this generator cares about.
+logger = logging.getLogger(__name__)
+
 SITE_SLUGS = ("dc-east", "branch-01", "dr-west")
 
 # Slug-to-spec-key mapping (NetBox hyphens → spec underscores).
@@ -426,6 +430,7 @@ def main() -> None:
     try:
         spec = generate_spec(api)
     except Exception as e:
+        logger.exception("Error: %s", e if "e" in dir() else "unknown")
         print(f"ERROR: Failed to generate spec from NetBox: {e}", file=sys.stderr)
         sys.exit(1)
 

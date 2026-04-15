@@ -1,5 +1,6 @@
 """Bootstrap management IPs on EVE-NG devices via startup-config injection.
 
+
 Solves the chicken-and-egg problem: we need SSH to push configs, but devices
 have no management IPs until configs are pushed. This script generates minimal
 startup configs with ONLY the management interface IP and injects them into
@@ -16,6 +17,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import logging
 import sys
 from pathlib import Path
 
@@ -23,6 +25,8 @@ import yaml
 
 from scripts.bootstrap_config import get_mgmt_ips
 from scripts.credentials import require_credentials
+
+logger = logging.getLogger(__name__)
 
 SPEC_PATH = Path(__file__).parent.parent / "specs" / "generated" / "lab_spec.yaml"
 
@@ -210,6 +214,7 @@ def bootstrap_management(
             print(" — OK")
             injected += 1
         except Exception as e:
+            logger.exception("Error: %s", e if "e" in dir() else "unknown")
             print(f" — ERROR: {e}")
 
     if not dry_run:

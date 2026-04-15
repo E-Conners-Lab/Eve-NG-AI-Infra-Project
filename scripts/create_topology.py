@@ -1,5 +1,6 @@
 """Create the 21-node EVE-NG lab topology from the YAML spec.
 
+
 Uses the evengsdk library for all EVE-NG API operations. This ensures
 correct interface name resolution, lab file locking, and bridge creation.
 
@@ -12,6 +13,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import logging
 import sys
 from pathlib import Path
 
@@ -19,6 +21,8 @@ import yaml
 
 from scripts.bootstrap_config import get_layout, get_mgmt_ips, get_mgmt_labels, get_platform_map
 from scripts.credentials import require_credentials
+
+logger = logging.getLogger(__name__)
 
 SPEC_PATH = Path(__file__).parent.parent / "specs" / "generated" / "lab_spec.yaml"
 LAB_NAME = "AI-Infra-Lab"
@@ -146,6 +150,7 @@ def _run_topology_steps(
         try:
             eve.create_lab(lab_name, description="AI Infrastructure Lab — 21 nodes, 3 sites")
         except Exception as e:
+            logger.exception("Unexpected error during network creation")
             if "already exists" in str(e).lower() or "60028" in str(e):
                 print("  Lab already exists, continuing...")
             else:
@@ -157,6 +162,7 @@ def _run_topology_steps(
         try:
             eve.add_lab_network(lab_path, network_type="pnet0", name="Management")
         except Exception:
+            logger.exception("Unexpected error during network creation")
             print("  Management network may already exist, continuing...")
 
     # --- Step 3: Add all 21 nodes ---
@@ -188,6 +194,7 @@ def _run_topology_steps(
                     top=top,
                 )
             except Exception as e:
+                logger.exception("Unexpected error during network creation")
                 print(f"    ERROR: {e}")
 
     # --- Step 4: Wire P2P links ---
@@ -211,6 +218,7 @@ def _run_topology_steps(
                 print(" — OK")
                 wired += 1
             except Exception as e:
+                logger.exception("Unexpected error during network creation")
                 print(f" — ERROR: {e}")
         else:
             print(" — OK (dry run)")
@@ -236,6 +244,7 @@ def _run_topology_steps(
                 print(f" — OK ({MGMT_IPS.get(name, '')})")
                 mgmt_connected += 1
             except Exception as e:
+                logger.exception("Unexpected error during network creation")
                 print(f" — ERROR: {e}")
         else:
             print(f" — OK (dry run, {MGMT_IPS.get(name, '')})")

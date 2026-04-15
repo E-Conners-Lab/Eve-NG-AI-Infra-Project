@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -24,6 +25,8 @@ from netmiko.exceptions import NetmikoAuthenticationException, NetmikoTimeoutExc
 
 from scripts.bootstrap_config import get_mgmt_ips
 from scripts.credentials import require_credentials
+
+logger = logging.getLogger(__name__)
 
 SPEC_PATH = Path(__file__).parent.parent / "specs" / "generated" / "lab_spec.yaml"
 CONFIGS_DIR = Path(__file__).parent.parent / "configs" / "generated"
@@ -202,6 +205,7 @@ def push_config_to_device(
         )
         return False
     except Exception as e:
+        logger.exception("Error on device: %s", e)
         error_msg = f"{type(e).__name__}: {e}"
         print(f"  {device_name}: ERROR — {error_msg}")
         _gait_log(

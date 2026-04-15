@@ -1,5 +1,6 @@
 """Populate NetBox with the full 21-node AI Infrastructure Lab data model.
 
+
 Creates sites, manufacturers, platforms, device types, device roles,
 devices, interfaces, IP addresses, prefixes, cables, and config contexts
 to match the YAML spec. Idempotent — safe to run multiple times.
@@ -12,12 +13,15 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import logging
 import sys
 from pathlib import Path
 
 import yaml
 
 from scripts.credentials import require_credentials
+
+logger = logging.getLogger(__name__)
 
 SPEC_PATH = Path(__file__).parent.parent / "specs" / "generated" / "lab_spec.yaml"
 
@@ -260,6 +264,7 @@ def populate(nb, spec: dict, dry_run: bool = False) -> None:
                         }
                     )
                 except Exception as e:
+                    logger.exception("Error: %s", e if "e" in dir() else "unknown")
                     err = str(e)
                     if "Duplicate" in err:
                         skipped_ips.append(f"{dev_name}:{iface_name} = {ip_addr}")
@@ -292,6 +297,7 @@ def populate(nb, spec: dict, dry_run: bool = False) -> None:
                     }
                 )
             except Exception as e:
+                logger.exception("Error: %s", e if "e" in dir() else "unknown")
                 err = str(e)
                 if "Duplicate" in err:
                     skipped_ips.append(f"{dev_name}:Loopback0 = {lo_ip}")
@@ -406,6 +412,7 @@ def populate(nb, spec: dict, dry_run: bool = False) -> None:
                 )
                 cable_count += 1
             except Exception as e:
+                logger.exception("Error: %s", e if "e" in dir() else "unknown")
                 print(f"  Cable {dev_name}:{iface_def['name']} <-> {peer}:{peer_iface}: {e}")
 
     print(f"  Created {cable_count} cables")

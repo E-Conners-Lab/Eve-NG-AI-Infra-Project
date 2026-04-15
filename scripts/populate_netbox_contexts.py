@@ -1,8 +1,10 @@
-"""Populate NetBox config contexts with full fabric, VXLAN, security, and HA data.
+"""Populate NetBox config contexts from the YAML spec.
 
-This is the missing piece that makes the generator pull EVERYTHING from NetBox.
-After running this, `make generate-spec` produces a complete YAML spec with no
-hand-written data.
+Reads device names, ASNs, IPs, and topology data from the spec and pushes
+config contexts to NetBox. No hardcoded device names, IPs, or ASNs —
+everything derives from the spec and bootstrap config.
+
+Run AFTER populate_netbox.py (which creates devices, interfaces, IPs, cables).
 
 Usage:
     python -m scripts.populate_netbox_contexts
@@ -10,21 +12,30 @@ Usage:
 
 from __future__ import annotations
 
+import logging
+import sys
+
 import pynetbox
 
 from scripts.bootstrap_config import get_mgmt_ips, get_shared_overlay_asn
 from scripts.credentials import require_credentials
 
-# Loaded from configs/lab_bootstrap.yaml — no hardcoded values.
-MGMT_IPS = get_mgmt_ips()
-SHARED_OVERLAY_ASN = get_shared_overlay_asn()
+logger = logging.getLogger(__name__)
+
+SPEC_KEYS_TO_SITE = {
+    "dc_east": "dc-east",
+    "branch_01": "branch-01",
+    "dr_west": "dr-west",
+}
+
+FABRIC_SITES = ("dc_east", "dr_west")
 
 
 def _update_context(nb: pynetbox.api, device_name: str, context: dict) -> None:
     """Merge context data into a device's local_context_data."""
     dev = nb.dcim.devices.get(name=device_name)
     if not dev:
-        print(f"  WARNING: Device {device_name} not found")
+        logger.warning("Device %s not found in NetBox", device_name)
         return
     existing = dev.local_context_data or {}
     existing.update(context)
@@ -32,416 +43,214 @@ def _update_context(nb: pynetbox.api, device_name: str, context: dict) -> None:
     dev.save()
 
 
-def populate_contexts(nb: pynetbox.api) -> None:
-    """Push all config context data into NetBox devices."""
+def _get_loopback_ip(spec: dict, device_name: str) -> str:
+    """Find a device's Loopback0 IP from the spec."""
+    for _sk, site in spec.get("sites", {}).items():
+        for dev in site.get("devices", []):
+            if dev["name"] == device_name and "loopback0" in dev:
+                return dev["loopback0"].split("/")[0]
+    for dev in spec.get("wan_transport", {}).get("devices", []):
+        if dev["name"] == device_name and "loopback0" in dev:
+            return dev["loopback0"].split("/")[0]
+    return ""
 
-    # ==================================================================
-    # 1. DC-East Spines — BGP RR, EVPN overlay config
-    # ==================================================================
-    print("DC-East Spines")
-    spine_overlay = {
-        "bgp_config": {"asn": 65000, "role": "rr"},
-        "agent_boundary": "managed",
-        "evpn_overlay": {
-            "role": "route-reflector",
-            "neighbors": [
-                {"address": "10.1.0.11", "remote_as": 65000, "description": "dc-leaf-1 EVPN"},
-                {"address": "10.1.0.12", "remote_as": 65000, "description": "dc-leaf-2 EVPN"},
-                {"address": "10.1.0.13", "remote_as": 65000, "description": "dc-border-1 EVPN"},
-                {"address": "10.1.0.14", "remote_as": 65000, "description": "dc-border-2 EVPN"},
-            ],
-        },
-        "mgmt_ip": MGMT_IPS["dc-spine-1"],
-    }
-    _update_context(nb, "dc-spine-1", spine_overlay)
 
-    spine2_overlay = dict(spine_overlay)
-    spine2_overlay["mgmt_ip"] = MGMT_IPS["dc-spine-2"]
-    _update_context(nb, "dc-spine-2", spine2_overlay)
-    print("  dc-spine-1, dc-spine-2 — overlay RR + EVPN neighbors")
+def populate_contexts(nb: pynetbox.api, spec: dict) -> None:
+    """Push config contexts to all devices based on the spec."""
+    mgmt_ips = get_mgmt_ips()
+    shared_overlay_asn = get_shared_overlay_asn()
+    boundary = spec.get("agent", {}).get("boundary", {})
+    managed_set = set(boundary.get("managed", []))
+    excluded_set = set(boundary.get("excluded", []))
 
-    # ==================================================================
-    # 2. DC-East Compute Leaves — VXLAN, VTEP, anycast gateway
-    # ==================================================================
-    print("DC-East Compute Leaves")
-    _update_context(
-        nb,
-        "dc-leaf-1",
-        {
-            "bgp_config": {"asn": 65001, "role": "client"},
-            "agent_boundary": "managed",
-            "vxlan_config": {
-                "vtep_source_interface": "Loopback1",
-                "vtep_ip": "10.1.2.11/32",
-                "vni_mappings": [
-                    {
-                        "vni": 10100,
-                        "vlan": 100,
-                        "name": "SERVERS_A",
-                        "subnet": "10.10.1.0/24",
-                        "gateway": "10.10.1.1/24",
-                    },
-                ],
-            },
-            "mgmt_ip": MGMT_IPS["dc-leaf-1"],
-        },
-    )
+    # Thresholds and compliance (applied to all managed devices)
+    thresholds = spec.get("agent", {}).get("thresholds", {})
+    compliance_rules = spec.get("agent", {}).get("compliance_rules", [])
 
-    _update_context(
-        nb,
-        "dc-leaf-2",
-        {
-            "bgp_config": {"asn": 65002, "role": "client"},
-            "agent_boundary": "managed",
-            "vxlan_config": {
-                "vtep_source_interface": "Loopback1",
-                "vtep_ip": "10.1.2.12/32",
-                "vni_mappings": [
-                    {
-                        "vni": 10200,
-                        "vlan": 200,
-                        "name": "SERVERS_B",
-                        "subnet": "10.10.2.0/24",
-                        "gateway": "10.10.2.1/24",
-                    },
-                ],
-            },
-            "mgmt_ip": MGMT_IPS["dc-leaf-2"],
-        },
-    )
-    print("  dc-leaf-1 (VNI 10100), dc-leaf-2 (VNI 10200)")
+    # ------------------------------------------------------------------
+    # 1. Process site devices
+    # ------------------------------------------------------------------
+    for spec_key, site_data in spec.get("sites", {}).items():
+        fabric = site_data.get("fabric", {})
+        overlay = fabric.get("overlay", {})
+        vxlan = fabric.get("vxlan", {})
 
-    # ==================================================================
-    # 3. DC-East Border Leaves
-    # ==================================================================
-    print("DC-East Border Leaves")
-    _update_context(
-        nb,
-        "dc-border-1",
-        {
-            "bgp_config": {"asn": 65003},
-            "agent_boundary": "managed",
-            "observed_interfaces": ["Ethernet3"],
-            "mgmt_ip": MGMT_IPS["dc-border-1"],
-        },
-    )
-    _update_context(
-        nb,
-        "dc-border-2",
-        {
-            "bgp_config": {"asn": 65004},
-            "agent_boundary": "managed",
-            "observed_interfaces": ["Ethernet3"],
-            "mgmt_ip": MGMT_IPS["dc-border-2"],
-        },
-    )
-    print("  dc-border-1 (AS 65003), dc-border-2 (AS 65004)")
+        for dev in site_data.get("devices", []):
+            name = dev["name"]
+            role = dev["role"]
+            ctx: dict = {}
 
-    # ==================================================================
-    # 4. DC-East Firewalls — HA config, security zones, policies
-    # ==================================================================
-    print("DC Security (FortiGate HA)")
-    _update_context(
-        nb,
-        "dc-fw-1",
-        {
-            "agent_boundary": "excluded",
-            "ha_config": {"role": "active", "peer": "dc-fw-2", "group_id": 1, "priority": 200},
-            "security_zones": [
-                {"name": "dc-trust", "type": "trust", "interfaces": ["port1"]},
-                {"name": "wan-untrust", "type": "untrust", "interfaces": ["port2"]},
-            ],
-            "security_policies": [
-                {
-                    "name": "allow-dc-outbound",
-                    "source_zone": "dc-trust",
-                    "destination_zone": "wan-untrust",
-                    "action": "allow",
-                    "services": ["tcp/443", "tcp/80", "icmp"],
-                },
-                {
-                    "name": "allow-dc-ssh",
-                    "source_zone": "dc-trust",
-                    "destination_zone": "wan-untrust",
-                    "action": "allow",
-                    "services": ["tcp/22"],
-                },
-            ],
-            "mgmt_ip": MGMT_IPS["dc-fw-1"],
-        },
-    )
-    _update_context(
-        nb,
-        "dc-fw-2",
-        {
-            "agent_boundary": "excluded",
-            "ha_config": {"role": "standby", "peer": "dc-fw-1", "group_id": 1, "priority": 150},
-            "security_zones": [
-                {"name": "dc-trust", "type": "trust", "interfaces": ["port1"]},
-                {"name": "wan-untrust", "type": "untrust", "interfaces": ["port2"]},
-            ],
-            "security_policies": [
-                {
-                    "name": "allow-dc-outbound",
-                    "source_zone": "dc-trust",
-                    "destination_zone": "wan-untrust",
-                    "action": "allow",
-                    "services": ["tcp/443", "tcp/80", "icmp"],
-                },
-                {
-                    "name": "allow-dc-ssh",
-                    "source_zone": "dc-trust",
-                    "destination_zone": "wan-untrust",
-                    "action": "allow",
-                    "services": ["tcp/22"],
-                },
-            ],
-            "mgmt_ip": MGMT_IPS["dc-fw-2"],
-        },
-    )
-    print("  dc-fw-1 (active), dc-fw-2 (standby)")
+            # Agent boundary
+            if name in managed_set:
+                ctx["agent_boundary"] = "managed"
+            elif name in excluded_set:
+                ctx["agent_boundary"] = "excluded"
 
-    # ==================================================================
-    # 5. WAN Transport — CE and PE routers
-    # ==================================================================
-    print("WAN Transport")
-    _update_context(
-        nb,
-        "dc-ce-1",
-        {
-            "bgp_config": {"asn": 65100},
-            "agent_boundary": "excluded",
-            "mgmt_ip": MGMT_IPS["dc-ce-1"],
-        },
-    )
-    _update_context(
-        nb,
-        "sp-pe-1",
-        {
-            "bgp_config": {"asn": 64500},
-            "agent_boundary": "excluded",
-            "mgmt_ip": MGMT_IPS["sp-pe-1"],
-        },
-    )
-    _update_context(
-        nb,
-        "sp-pe-2",
-        {
-            "bgp_config": {"asn": 64500},
-            "agent_boundary": "excluded",
-            "mgmt_ip": MGMT_IPS["sp-pe-2"],
-        },
-    )
-    _update_context(
-        nb,
-        "dr-ce-1",
-        {
-            "bgp_config": {"asn": 65100},
-            "agent_boundary": "excluded",
-            "mgmt_ip": MGMT_IPS["dr-ce-1"],
-        },
-    )
-    print("  dc-ce-1, sp-pe-1, sp-pe-2, dr-ce-1")
+            # Management IP
+            if name in mgmt_ips:
+                ctx["mgmt_ip"] = mgmt_ips[name]
 
-    # ==================================================================
-    # 6. Branch-01
-    # ==================================================================
-    print("Branch-01")
-    _update_context(
-        nb,
-        "br-ce-1",
-        {
-            "bgp_config": {"asn": 65100},
-            "agent_boundary": "managed",
-            "mgmt_ip": MGMT_IPS["br-ce-1"],
-        },
-    )
-    _update_context(
-        nb,
-        "br-host-1",
-        {
-            "agent_boundary": "excluded",
-            "mgmt_ip": MGMT_IPS["br-host-1"],
-        },
-    )
-    print("  br-ce-1 (managed), br-host-1")
+            # BGP config from spec ASN
+            if "asn" in dev:
+                bgp_cfg: dict = {"asn": dev["asn"]}
+                # Spines are route reflectors
+                if role == "spine":
+                    bgp_cfg["role"] = "rr"
+                elif role == "leaf":
+                    bgp_cfg["role"] = "client"
+                ctx["bgp_config"] = bgp_cfg
 
-    # ==================================================================
-    # 7. DR-West Leaves — collapsed EVPN (no spines)
-    # ==================================================================
-    print("DR-West Leaves")
-    _update_context(
-        nb,
-        "dr-leaf-1",
-        {
-            "bgp_config": {"asn": 65201, "role": "client"},
-            "agent_boundary": "managed",
-            "observed_interfaces": ["Ethernet2"],
-            "vxlan_config": {
-                "vtep_source_interface": "Loopback1",
-                "vtep_ip": "10.31.2.1/32",
-                "vni_mappings": [
-                    {
-                        "vni": 10100,
-                        "vlan": 100,
-                        "name": "SERVERS_DR",
-                        "subnet": "10.30.1.0/24",
-                        "gateway": "10.30.1.1/24",
-                    },
-                ],
-            },
-            "evpn_overlay": {
-                "role": "peer",
-                "asn": 65201,
-                "neighbors": [
-                    {"address": "10.31.0.2", "remote_as": 65201, "description": "dr-leaf-2 EVPN"},
-                ],
-            },
-            "mgmt_ip": MGMT_IPS["dr-leaf-1"],
-        },
-    )
-    _update_context(
-        nb,
-        "dr-leaf-2",
-        {
-            "bgp_config": {"asn": 65202, "role": "client"},
-            "agent_boundary": "managed",
-            "observed_interfaces": ["Ethernet2"],
-            "vxlan_config": {
-                "vtep_source_interface": "Loopback1",
-                "vtep_ip": "10.31.2.2/32",
-                "vni_mappings": [
-                    {
-                        "vni": 10100,
-                        "vlan": 100,
-                        "name": "SERVERS_DR",
-                        "subnet": "10.30.1.0/24",
-                        "gateway": "10.30.1.1/24",
-                    },
-                ],
-            },
-            "evpn_overlay": {
-                "role": "peer",
-                "asn": 65201,
-                "neighbors": [
-                    {"address": "10.31.0.1", "remote_as": 65201, "description": "dr-leaf-1 EVPN"},
-                ],
-            },
-            "mgmt_ip": MGMT_IPS["dr-leaf-2"],
-        },
-    )
-    print("  dr-leaf-1 (AS 65201), dr-leaf-2 (AS 65202) — collapsed EVPN peers")
+            # EVPN overlay (for fabric sites)
+            if spec_key in FABRIC_SITES and overlay.get("neighbors"):
+                if role == "spine":
+                    ctx["evpn_overlay"] = {
+                        "role": "route-reflector",
+                        "neighbors": overlay["neighbors"],
+                    }
+                elif role == "leaf":
+                    # Check if collapsed design (no spines in site)
+                    spines = [d for d in site_data.get("devices", []) if d["role"] == "spine"]
+                    if spines:
+                        # Standard design — leaves peer with spines
+                        pass
+                    else:
+                        # Collapsed design — leaves peer with each other
+                        ctx["evpn_overlay"] = {
+                            "role": "peer",
+                            "asn": shared_overlay_asn,
+                            "neighbors": overlay["neighbors"],
+                        }
 
-    # ==================================================================
-    # 8. DR-West Firewalls
-    # ==================================================================
-    print("DR Security (FortiGate HA)")
-    _update_context(
-        nb,
-        "dr-fw-1",
-        {
-            "agent_boundary": "excluded",
-            "ha_config": {"role": "active", "peer": "dr-fw-2", "group_id": 2, "priority": 200},
-            "security_zones": [
-                {"name": "dr-trust", "type": "trust", "interfaces": ["port1"]},
-                {"name": "dr-untrust", "type": "untrust", "interfaces": ["port2"]},
-            ],
-            "security_policies": [
-                {
-                    "name": "allow-dr-outbound",
-                    "source_zone": "dr-trust",
-                    "destination_zone": "dr-untrust",
-                    "action": "allow",
-                    "services": ["tcp/443", "tcp/80", "icmp"],
-                },
-            ],
-            "mgmt_ip": MGMT_IPS["dr-fw-1"],
-        },
-    )
-    _update_context(
-        nb,
-        "dr-fw-2",
-        {
-            "agent_boundary": "excluded",
-            "ha_config": {"role": "standby", "peer": "dr-fw-1", "group_id": 2, "priority": 150},
-            "security_zones": [
-                {"name": "dr-trust", "type": "trust", "interfaces": ["port1"]},
-                {"name": "dr-untrust", "type": "untrust", "interfaces": ["port2"]},
-            ],
-            "security_policies": [
-                {
-                    "name": "allow-dr-outbound",
-                    "source_zone": "dr-trust",
-                    "destination_zone": "dr-untrust",
-                    "action": "allow",
-                    "services": ["tcp/443", "tcp/80", "icmp"],
-                },
-            ],
-            "mgmt_ip": MGMT_IPS["dr-fw-2"],
-        },
-    )
-    print("  dr-fw-1 (active), dr-fw-2 (standby)")
+            # VXLAN config (for leaves with VNI mappings)
+            if vxlan and role == "leaf":
+                vtep_sources = vxlan.get("vtep_sources", {})
+                vtep_ip = vtep_sources.get(name, "")
+                if vtep_ip:
+                    vni_mappings = vxlan.get("vni_mappings", [])
+                    ctx["vxlan_config"] = {
+                        "vtep_source_interface": "Loopback1",
+                        "vtep_ip": vtep_ip,
+                        "vni_mappings": vni_mappings,
+                    }
 
-    # ==================================================================
-    # 9. Hosts
-    # ==================================================================
-    print("Hosts")
-    for name in ["dc-host-1", "dc-host-2", "dr-host-1"]:
-        _update_context(
-            nb,
-            name,
-            {
-                "agent_boundary": "excluded",
-                "mgmt_ip": MGMT_IPS[name],
-            },
-        )
-    print("  dc-host-1, dc-host-2, dr-host-1")
+            # Observed interfaces (borders and leaves facing firewalls)
+            observed_list = boundary.get("observed", [])
+            device_observed = [
+                obs.split(":")[1] for obs in observed_list if obs.startswith(f"{name}:")
+            ]
+            if device_observed:
+                ctx["observed_interfaces"] = device_observed
 
-    # ==================================================================
-    # 10. Agent thresholds (global config context)
-    # ==================================================================
-    print("Agent Thresholds")
-    # Store on spine-1 as the "anchor" device for global config
-    _update_context(
-        nb,
-        "dc-spine-1",
-        {
-            "agent_thresholds": {
-                "bgp_hold_time": 180,
-                "interface_flap_window_sec": 300,
-                "max_route_deviation_pct": 10.0,
-            },
-            "compliance_rules": [
-                {
-                    "name": "bgp-session-established",
-                    "check": "all managed BGP sessions must be in Established state",
-                    "severity": "critical",
-                },
-                {
-                    "name": "vtep-reachability",
-                    "check": "all VTEP loopbacks must be reachable from all other VTEPs",
-                    "severity": "critical",
-                },
-                {
-                    "name": "vni-consistency",
-                    "check": "VNI-to-VLAN mappings must match across all sites",
-                    "severity": "warning",
-                },
-            ],
-        },
-    )
-    print("  Stored on dc-spine-1 (anchor device)")
+            # Thresholds + compliance on managed devices
+            if name in managed_set:
+                if thresholds:
+                    ctx["agent_thresholds"] = thresholds
+                if compliance_rules:
+                    ctx["compliance_rules"] = compliance_rules
 
-    print("\nAll config contexts populated.")
+            if ctx:
+                _update_context(nb, name, ctx)
+                print(f"  {name}: {list(ctx.keys())}")
+
+    # ------------------------------------------------------------------
+    # 2. Process WAN transport devices
+    # ------------------------------------------------------------------
+    for dev in spec.get("wan_transport", {}).get("devices", []):
+        name = dev["name"]
+        ctx: dict = {}
+
+        if name in managed_set:
+            ctx["agent_boundary"] = "managed"
+        elif name in excluded_set:
+            ctx["agent_boundary"] = "excluded"
+
+        if name in mgmt_ips:
+            ctx["mgmt_ip"] = mgmt_ips[name]
+
+        if "asn" in dev:
+            ctx["bgp_config"] = {"asn": dev["asn"]}
+
+        if name in managed_set:
+            if thresholds:
+                ctx["agent_thresholds"] = thresholds
+            if compliance_rules:
+                ctx["compliance_rules"] = compliance_rules
+
+        if ctx:
+            _update_context(nb, name, ctx)
+            print(f"  {name}: {list(ctx.keys())}")
+
+    # ------------------------------------------------------------------
+    # 3. Process security (firewall) devices
+    # ------------------------------------------------------------------
+    for zone_key, zone_data in spec.get("security", {}).items():
+        zones = zone_data.get("zones", [])
+        policies = zone_data.get("policies", [])
+        firewalls = zone_data.get("firewalls", [])
+
+        for i, dev in enumerate(firewalls):
+            name = dev["name"]
+            ctx: dict = {}
+
+            if name in managed_set:
+                ctx["agent_boundary"] = "managed"
+            elif name in excluded_set:
+                ctx["agent_boundary"] = "excluded"
+
+            if name in mgmt_ips:
+                ctx["mgmt_ip"] = mgmt_ips[name]
+
+            # HA config — first firewall is active, second is standby
+            ha_role = "active" if i == 0 else "standby"
+            ha_peer = firewalls[1 - i]["name"] if len(firewalls) > 1 else ""
+            ha_group_id = 1 if zone_key == "dc" else 2
+            ha_priority = 200 if i == 0 else 150
+
+            ctx["ha_config"] = {
+                "role": ha_role,
+                "peer": ha_peer,
+                "group_id": ha_group_id,
+                "priority": ha_priority,
+            }
+
+            # Security zones and policies from spec
+            if zones:
+                ctx["security_zones"] = zones
+            if policies:
+                ctx["security_policies"] = policies
+
+            if name in managed_set:
+                if thresholds:
+                    ctx["agent_thresholds"] = thresholds
+                if compliance_rules:
+                    ctx["compliance_rules"] = compliance_rules
+
+            if ctx:
+                _update_context(nb, name, ctx)
+                print(f"  {name}: {list(ctx.keys())}")
+
+    print("\nAll config contexts populated from spec.")
 
 
 def main() -> None:
     """CLI entrypoint."""
+    from pathlib import Path
+
+    import yaml
+
+    spec_path = Path(__file__).parent.parent / "specs" / "generated" / "lab_spec.yaml"
+    if not spec_path.exists():
+        print(f"ERROR: Spec not found: {spec_path}", file=sys.stderr)
+        sys.exit(1)
+
+    spec = yaml.safe_load(spec_path.read_text())
     creds = require_credentials("netbox_url", "netbox_token")
+
     print(f"Connecting to NetBox at {creds.netbox_url}...")
     nb = pynetbox.api(creds.netbox_url, token=creds.netbox_token)
     print("Connected.\n")
-    populate_contexts(nb)
+
+    populate_contexts(nb, spec)
 
 
 if __name__ == "__main__":

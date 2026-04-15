@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import json
+import logging
 import sys
 import time
 from datetime import UTC, datetime
@@ -29,6 +30,8 @@ from agent.skills.spec_compliance.skill import compare_asn, compare_interfaces
 from agent.telegram_notifier import send_drift_alert, send_skill_result, send_summary
 from scripts.bootstrap_config import get_mgmt_ips
 from scripts.credentials import require_credentials
+
+logger = logging.getLogger(__name__)
 
 SPEC_PATH = Path(__file__).parent.parent / "specs" / "generated" / "lab_spec.yaml"
 GAIT_LOG_DIR = Path(__file__).parent.parent / "logs"
@@ -147,6 +150,7 @@ def run_fabric_health(spec: dict, creds: object, log_file: Path) -> dict:
 
             results["devices"][name] = bgp_result
         except Exception as e:
+            logger.exception("Error on device: %s", e)
             results["failed"] += 1
             results["devices"][name] = {"status": f"error: {e}"}
             with contextlib.suppress(Exception):
@@ -160,7 +164,11 @@ def run_branch_connectivity(spec: dict, creds: object, log_file: Path) -> dict:
     mgmt_ips = get_mgmt_ips()
     results: dict = {"passed": 0, "failed": 0, "devices": {}}
 
-    branch_devices = ["br-ce-1", "dc-ce-1", "dr-ce-1"]
+    # CE routers from managed boundary — never hardcode device names
+    managed = get_managed_devices(spec)
+    branch_devices = [
+        name for name in managed if _find_device_in_spec(spec, name)[0].get("role") == "ce"
+    ]
     print(f"\n  branch_connectivity: checking {len(branch_devices)} CE routers")
 
     for name in branch_devices:
@@ -207,6 +215,7 @@ def run_branch_connectivity(spec: dict, creds: object, log_file: Path) -> dict:
 
             results["devices"][name] = bgp_result
         except Exception as e:
+            logger.exception("Error on device: %s", e)
             results["failed"] += 1
             results["devices"][name] = {"status": f"error: {e}"}
             with contextlib.suppress(Exception):
@@ -311,6 +320,7 @@ def run_spec_compliance(spec: dict, creds: object, log_file: Path) -> dict:
 
             results["devices"][name] = {"drifts": drifts}
         except Exception as e:
+            logger.exception("Error on device: %s", e)
             results["failed"] += 1
             results["devices"][name] = {"status": f"error: {e}"}
             with contextlib.suppress(Exception):

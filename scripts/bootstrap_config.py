@@ -42,3 +42,8 @@ def get_layout() -> dict[str, list[int]]:
 def get_shared_overlay_asn() -> int:
     """Return the shared overlay ASN for cross-site EVPN."""
     return _load()["shared_overlay_asn"]
+
+
+def get_mgmt_gateway() -> str:
+    """Return the management network gateway IP."""
+    return _load()["management"]["gateway"]
