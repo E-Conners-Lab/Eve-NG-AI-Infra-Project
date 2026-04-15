@@ -1,0 +1,52 @@
+! Arista EOS Spine Configuration
+! Generated from spec — do not edit manually
+!
+hostname {{ hostname }}
+!
+interface Loopback0
+   description Router ID
+   ip address {{ loopback0_ip }}/{{ loopback0_mask }}
+!
+{% for iface in interfaces %}
+interface {{ iface.name }}
+   description {{ iface.description | default('') }}
+   no switchport
+   ip address {{ ip_no_mask(iface.ipv4) }}/{{ ip_mask(iface.ipv4) }}
+!
+{% endfor %}
+ip routing
+!
+router bgp {{ asn }}
+   router-id {{ loopback0_ip }}
+   no bgp default ipv4-unicast
+   maximum-paths 4 ecmp 4
+   !
+   ! Underlay eBGP neighbors (leaf/border P2P links)
+{% for iface in interfaces %}
+   neighbor {{ peer_ip(iface) }} remote-as {{ asn + loop.index }}
+   neighbor {{ peer_ip(iface) }} description {{ iface.peer | default('') }}
+   neighbor {{ peer_ip(iface) }} send-community extended
+!
+{% endfor %}
+   !
+   address-family ipv4
+{% for iface in interfaces %}
+      neighbor {{ peer_ip(iface) }} activate
+{% endfor %}
+      network {{ loopback0_ip }}/{{ loopback0_mask }}
+   !
+   ! Overlay iBGP EVPN (route reflector)
+{% for neighbor in overlay.get('neighbors', []) %}
+   neighbor {{ neighbor.address }} remote-as {{ asn }}
+   neighbor {{ neighbor.address }} update-source Loopback0
+   neighbor {{ neighbor.address }} description {{ neighbor.description | default('') }}
+   neighbor {{ neighbor.address }} send-community extended
+{% endfor %}
+   !
+   address-family evpn
+{% for neighbor in overlay.get('neighbors', []) %}
+      neighbor {{ neighbor.address }} activate
+      neighbor {{ neighbor.address }} route-reflector-client
+{% endfor %}
+!
+end

@@ -49,7 +49,7 @@ jobs:
 
   config-gen:
     name: Config Generation Tests
-    needs: schema-validation
+    needs: [schema-validation, generator]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -60,4 +60,3 @@ jobs:
       - run: uv pip install --system jsonschema pyyaml jinja2 pytest
       - name: Run config generation tests
         run: pytest tests/unit/test_config_gen.py -v
-        continue-on-error: true  # Tests will be added incrementally

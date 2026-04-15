@@ -1,0 +1,59 @@
+! Arista EOS Border Leaf Configuration
+! Generated from spec — do not edit manually
+!
+hostname {{ hostname }}
+!
+interface Loopback0
+   description Router ID
+   ip address {{ loopback0_ip }}/{{ loopback0_mask }}
+!
+{% for iface in interfaces %}
+interface {{ iface.name }}
+   description {{ iface.description | default('') }}
+   no switchport
+   ip address {{ ip_no_mask(iface.ipv4) }}/{{ ip_mask(iface.ipv4) }}
+!
+{% endfor %}
+ip routing
+!
+ip prefix-list DC-SUMMARIES seq 10 permit 10.1.0.0/16 le 32
+ip prefix-list DC-SUMMARIES seq 20 permit 10.10.0.0/16 le 32
+!
+route-map ADVERTISE-DC permit 10
+   match ip address prefix-list DC-SUMMARIES
+!
+router bgp {{ asn }}
+   router-id {{ loopback0_ip }}
+   no bgp default ipv4-unicast
+   maximum-paths 4 ecmp 4
+   !
+   ! Underlay eBGP to spines
+{% for iface in interfaces if iface.get('peer', '').startswith('dc-spine') or iface.get('peer', '').startswith('dr-') %}
+{% for s in spines if s.name == iface.peer %}
+   neighbor {{ peer_ip(iface) }} remote-as {{ s.asn }}
+   neighbor {{ peer_ip(iface) }} description {{ iface.peer }}
+   neighbor {{ peer_ip(iface) }} send-community extended
+{% endfor %}
+{% endfor %}
+   !
+   address-family ipv4
+{% for iface in interfaces if iface.get('peer', '').startswith('dc-spine') or iface.get('peer', '').startswith('dr-') %}
+      neighbor {{ peer_ip(iface) }} activate
+{% endfor %}
+      network {{ loopback0_ip }}/{{ loopback0_mask }}
+      redistribute connected route-map ADVERTISE-DC
+   !
+   ! Overlay iBGP EVPN to spine route reflectors
+{% for spine in spines %}
+   neighbor {{ ip_no_mask(spine.loopback0) }} remote-as {{ spine.asn }}
+   neighbor {{ ip_no_mask(spine.loopback0) }} update-source Loopback0
+   neighbor {{ ip_no_mask(spine.loopback0) }} description {{ spine.name }} EVPN
+   neighbor {{ ip_no_mask(spine.loopback0) }} send-community extended
+{% endfor %}
+   !
+   address-family evpn
+{% for spine in spines %}
+      neighbor {{ ip_no_mask(spine.loopback0) }} activate
+{% endfor %}
+!
+end

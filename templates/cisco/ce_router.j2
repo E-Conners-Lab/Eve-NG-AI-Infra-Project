@@ -1,0 +1,55 @@
+! Cisco IOS-XE CE Router Configuration
+! Generated from spec — do not edit manually
+!
+hostname {{ hostname }}
+!
+interface Loopback0
+ description Router ID
+ ip address {{ loopback0_ip }} {{ cidr_to_subnet(loopback0_mask | int) }}
+!
+{% for iface in interfaces %}
+interface {{ iface.name }}
+ description {{ iface.description | default('') }}
+ ip address {{ ip_no_mask(iface.ipv4) }} {{ cidr_to_subnet(ip_mask(iface.ipv4) | int) }}
+ no shutdown
+!
+{% endfor %}
+ip routing
+!
+! Dual-homed path selection: prefer primary PE via local-preference
+route-map PRIMARY-PE permit 10
+ set local-preference 200
+!
+route-map SECONDARY-PE permit 10
+ set local-preference 100
+!
+router bgp {{ asn }}
+ bgp router-id {{ loopback0_ip }}
+ bgp log-neighbor-changes
+ no bgp default ipv4-unicast
+ !
+{% for pe in pe_neighbors %}
+{% if loop.index == 1 %}
+ neighbor {{ pe.peer_ip }} remote-as {{ pe.remote_as }}
+ neighbor {{ pe.peer_ip }} description {{ pe.peer_name }} (primary)
+ neighbor {{ pe.peer_ip }} route-map PRIMARY-PE in
+{% else %}
+ neighbor {{ pe.peer_ip }} remote-as {{ pe.remote_as }}
+ neighbor {{ pe.peer_ip }} description {{ pe.peer_name }} (secondary)
+ neighbor {{ pe.peer_ip }} route-map SECONDARY-PE in
+{% endif %}
+{% endfor %}
+ !
+ address-family ipv4
+{% for pe in pe_neighbors %}
+  neighbor {{ pe.peer_ip }} activate
+{% endfor %}
+  network {{ loopback0_ip }} mask {{ cidr_to_subnet(loopback0_mask | int) }}
+{% for iface in interfaces if not iface.get('peer', '').startswith('sp-pe') %}
+{% if iface.get('ipv4') %}
+  network {{ ip_no_mask(iface.ipv4) }} mask {{ cidr_to_subnet(ip_mask(iface.ipv4) | int) }}
+{% endif %}
+{% endfor %}
+ exit-address-family
+!
+end

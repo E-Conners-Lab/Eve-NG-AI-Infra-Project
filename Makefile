@@ -1,4 +1,4 @@
-.PHONY: test lint validate generate-spec generate-configs install dev-install clean
+.PHONY: test lint validate generate-spec generate-configs validate-configs install dev-install clean
 
 # Default target
 all: lint validate test
@@ -41,7 +41,11 @@ endif
 
 # Render per-device configs from spec
 generate-configs:
-	@echo "Config generation not yet implemented"
+	python generator/render_configs.py
+
+# Validate rendered configs (run config generation tests)
+validate-configs:
+	pytest tests/unit/test_config_gen.py -v
 
 # Remove generated artifacts
 clean:

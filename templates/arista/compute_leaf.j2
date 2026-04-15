@@ -1,0 +1,96 @@
+! Arista EOS Compute Leaf Configuration
+! Generated from spec — do not edit manually
+!
+hostname {{ hostname }}
+!
+vlan {{ vxlan.get('vni_mappings', [{}])[0].get('vlan', '') }}
+   name {{ vxlan.get('vni_mappings', [{}])[0].get('name', '') }}
+!
+{% for mapping in vxlan.get('vni_mappings', []) %}
+{% if mapping.vlan is defined %}
+vlan {{ mapping.vlan }}
+   name {{ mapping.get('name', 'VLAN_' ~ mapping.vlan) }}
+{% endif %}
+{% endfor %}
+!
+interface Loopback0
+   description Router ID
+   ip address {{ loopback0_ip }}/{{ loopback0_mask }}
+!
+interface Loopback1
+   description VTEP source
+   ip address {{ ip_no_mask(vxlan.get('vtep_source', '')) }}/32
+!
+{% for iface in interfaces %}
+{% if iface.get('ipv4') %}
+interface {{ iface.name }}
+   description {{ iface.description | default('') }}
+   no switchport
+   ip address {{ ip_no_mask(iface.ipv4) }}/{{ ip_mask(iface.ipv4) }}
+{% elif iface.get('vlan') is not none %}
+interface {{ iface.name }}
+   description {{ iface.description | default('') }}
+   switchport access vlan {{ iface.vlan }}
+{% endif %}
+!
+{% endfor %}
+interface Vxlan1
+   vxlan source-interface Loopback1
+{% for mapping in vxlan.get('vni_mappings', []) %}
+   vxlan vni {{ mapping.vni }} vlan {{ mapping.vlan }}
+{% endfor %}
+!
+{% for mapping in vxlan.get('vni_mappings', []) %}
+{% if mapping.get('gateway') %}
+interface Vlan{{ mapping.vlan }}
+   description {{ mapping.get('name', '') }} gateway
+   ip address virtual {{ ip_no_mask(mapping.gateway) }}/{{ ip_mask(mapping.gateway) }}
+{% endif %}
+{% endfor %}
+!
+ip virtual-router mac-address 00:1c:73:00:00:01
+ip routing
+!
+router bgp {{ asn }}
+   router-id {{ loopback0_ip }}
+   no bgp default ipv4-unicast
+   maximum-paths 4 ecmp 4
+   !
+   ! Underlay eBGP to spines
+{% for iface in interfaces if iface.get('peer', '').startswith('dc-spine') or iface.get('peer', '').startswith('dr-leaf') %}
+{% set spine_dev = None %}
+{% for s in spines if s.name == iface.peer %}
+{% set spine_dev = s %}
+   neighbor {{ peer_ip(iface) }} remote-as {{ s.asn }}
+   neighbor {{ peer_ip(iface) }} description {{ iface.peer }}
+   neighbor {{ peer_ip(iface) }} send-community extended
+{% endfor %}
+{% endfor %}
+   !
+   address-family ipv4
+{% for iface in interfaces if iface.get('peer', '').startswith('dc-spine') or iface.get('peer', '').startswith('dr-leaf') %}
+      neighbor {{ peer_ip(iface) }} activate
+{% endfor %}
+      network {{ loopback0_ip }}/{{ loopback0_mask }}
+   !
+   ! Overlay iBGP EVPN to spine route reflectors
+{% for spine in spines %}
+   neighbor {{ ip_no_mask(spine.loopback0) }} remote-as {{ spine.asn }}
+   neighbor {{ ip_no_mask(spine.loopback0) }} update-source Loopback0
+   neighbor {{ ip_no_mask(spine.loopback0) }} description {{ spine.name }} EVPN
+   neighbor {{ ip_no_mask(spine.loopback0) }} send-community extended
+{% endfor %}
+   !
+   address-family evpn
+{% for spine in spines %}
+      neighbor {{ ip_no_mask(spine.loopback0) }} activate
+{% endfor %}
+   !
+{% for mapping in vxlan.get('vni_mappings', []) %}
+   vlan {{ mapping.vlan }}
+      rd auto
+      route-target both {{ asn }}:{{ mapping.vni }}
+      redistribute learned
+{% endfor %}
+!
+end

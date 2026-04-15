@@ -7,42 +7,299 @@ metadata:
 sites:
   dc_east:
     devices:
+      # --- Spines ---
       - name: dc-spine-1
         role: spine
         platform: arista_eos
         loopback0: "10.1.0.1/32"
         asn: 65000
+        interfaces:
+          - name: Ethernet1
+            ipv4: "10.1.1.0/31"
+            description: "to dc-leaf-1"
+            peer: dc-leaf-1
+            peer_interface: Ethernet1
+          - name: Ethernet2
+            ipv4: "10.1.1.2/31"
+            description: "to dc-leaf-2"
+            peer: dc-leaf-2
+            peer_interface: Ethernet1
+          - name: Ethernet3
+            ipv4: "10.1.1.4/31"
+            description: "to dc-border-1"
+            peer: dc-border-1
+            peer_interface: Ethernet1
+          - name: Ethernet4
+            ipv4: "10.1.1.6/31"
+            description: "to dc-border-2"
+            peer: dc-border-2
+            peer_interface: Ethernet1
       - name: dc-spine-2
         role: spine
         platform: arista_eos
         loopback0: "10.1.0.2/32"
         asn: 65000
+        interfaces:
+          - name: Ethernet1
+            ipv4: "10.1.1.8/31"
+            description: "to dc-leaf-1"
+            peer: dc-leaf-1
+            peer_interface: Ethernet2
+          - name: Ethernet2
+            ipv4: "10.1.1.10/31"
+            description: "to dc-leaf-2"
+            peer: dc-leaf-2
+            peer_interface: Ethernet2
+          - name: Ethernet3
+            ipv4: "10.1.1.12/31"
+            description: "to dc-border-1"
+            peer: dc-border-1
+            peer_interface: Ethernet2
+          - name: Ethernet4
+            ipv4: "10.1.1.14/31"
+            description: "to dc-border-2"
+            peer: dc-border-2
+            peer_interface: Ethernet2
+
+      # --- Compute Leaves ---
       - name: dc-leaf-1
         role: leaf
         platform: arista_eos
         loopback0: "10.1.0.11/32"
         asn: 65001
+        interfaces:
+          - name: Ethernet1
+            ipv4: "10.1.1.1/31"
+            description: "to dc-spine-1"
+            peer: dc-spine-1
+            peer_interface: Ethernet1
+          - name: Ethernet2
+            ipv4: "10.1.1.9/31"
+            description: "to dc-spine-2"
+            peer: dc-spine-2
+            peer_interface: Ethernet1
+          - name: Ethernet3
+            description: "to dc-host-1"
+            peer: dc-host-1
+            peer_interface: eth0
+            vlan: 100
+            vni: 10100
       - name: dc-leaf-2
         role: leaf
         platform: arista_eos
         loopback0: "10.1.0.12/32"
         asn: 65002
+        interfaces:
+          - name: Ethernet1
+            ipv4: "10.1.1.3/31"
+            description: "to dc-spine-1"
+            peer: dc-spine-1
+            peer_interface: Ethernet2
+          - name: Ethernet2
+            ipv4: "10.1.1.11/31"
+            description: "to dc-spine-2"
+            peer: dc-spine-2
+            peer_interface: Ethernet2
+          - name: Ethernet3
+            description: "to dc-host-2"
+            peer: dc-host-2
+            peer_interface: eth0
+            vlan: 200
+            vni: 10200
+
+      # --- Border Leaves ---
       - name: dc-border-1
         role: border-leaf
         platform: arista_eos
         loopback0: "10.1.0.13/32"
         asn: 65003
+        interfaces:
+          - name: Ethernet1
+            ipv4: "10.1.1.5/31"
+            description: "to dc-spine-1"
+            peer: dc-spine-1
+            peer_interface: Ethernet3
+          - name: Ethernet2
+            ipv4: "10.1.1.13/31"
+            description: "to dc-spine-2"
+            peer: dc-spine-2
+            peer_interface: Ethernet3
+          - name: Ethernet3
+            ipv4: "10.99.0.0/31"
+            description: "to dc-fw-1"
+            peer: dc-fw-1
+            peer_interface: port1
       - name: dc-border-2
         role: border-leaf
         platform: arista_eos
         loopback0: "10.1.0.14/32"
         asn: 65004
+        interfaces:
+          - name: Ethernet1
+            ipv4: "10.1.1.7/31"
+            description: "to dc-spine-1"
+            peer: dc-spine-1
+            peer_interface: Ethernet4
+          - name: Ethernet2
+            ipv4: "10.1.1.15/31"
+            description: "to dc-spine-2"
+            peer: dc-spine-2
+            peer_interface: Ethernet4
+          - name: Ethernet3
+            ipv4: "10.99.0.2/31"
+            description: "to dc-fw-2"
+            peer: dc-fw-2
+            peer_interface: port1
+
+      # --- Hosts ---
       - name: dc-host-1
         role: host
         platform: linux
+        interfaces:
+          - name: eth0
+            ipv4: "10.10.1.10/24"
+            description: "VNI 10100"
       - name: dc-host-2
         role: host
         platform: linux
+        interfaces:
+          - name: eth0
+            ipv4: "10.10.2.10/24"
+            description: "VNI 10200"
+
+    fabric:
+      underlay:
+        asn: 65000
+        router_id: "10.1.0.1"
+      overlay:
+        asn: 65000
+        router_id: "10.1.0.1"
+        neighbors:
+          - address: "10.1.0.11"
+            remote_as: 65000
+            description: "dc-leaf-1 EVPN"
+            address_families:
+              - evpn
+          - address: "10.1.0.12"
+            remote_as: 65000
+            description: "dc-leaf-2 EVPN"
+            address_families:
+              - evpn
+          - address: "10.1.0.13"
+            remote_as: 65000
+            description: "dc-border-1 EVPN"
+            address_families:
+              - evpn
+          - address: "10.1.0.14"
+            remote_as: 65000
+            description: "dc-border-2 EVPN"
+            address_families:
+              - evpn
+      vxlan:
+        vtep_source: "10.1.2.11/32"
+        vni_mappings:
+          - vni: 10100
+            vlan: 100
+            name: "SERVERS_A"
+            gateway: "10.10.1.1/24"
+            subnet: "10.10.1.0/24"
+          - vni: 10200
+            vlan: 200
+            name: "SERVERS_B"
+            gateway: "10.10.2.1/24"
+            subnet: "10.10.2.0/24"
+
+    links:
+      - a_end:
+          device: dc-spine-1
+          interface: Ethernet1
+          ipv4: "10.1.1.0/31"
+        z_end:
+          device: dc-leaf-1
+          interface: Ethernet1
+          ipv4: "10.1.1.1/31"
+        type: p2p
+      - a_end:
+          device: dc-spine-1
+          interface: Ethernet2
+          ipv4: "10.1.1.2/31"
+        z_end:
+          device: dc-leaf-2
+          interface: Ethernet1
+          ipv4: "10.1.1.3/31"
+        type: p2p
+      - a_end:
+          device: dc-spine-1
+          interface: Ethernet3
+          ipv4: "10.1.1.4/31"
+        z_end:
+          device: dc-border-1
+          interface: Ethernet1
+          ipv4: "10.1.1.5/31"
+        type: p2p
+      - a_end:
+          device: dc-spine-1
+          interface: Ethernet4
+          ipv4: "10.1.1.6/31"
+        z_end:
+          device: dc-border-2
+          interface: Ethernet1
+          ipv4: "10.1.1.7/31"
+        type: p2p
+      - a_end:
+          device: dc-spine-2
+          interface: Ethernet1
+          ipv4: "10.1.1.8/31"
+        z_end:
+          device: dc-leaf-1
+          interface: Ethernet2
+          ipv4: "10.1.1.9/31"
+        type: p2p
+      - a_end:
+          device: dc-spine-2
+          interface: Ethernet2
+          ipv4: "10.1.1.10/31"
+        z_end:
+          device: dc-leaf-2
+          interface: Ethernet2
+          ipv4: "10.1.1.11/31"
+        type: p2p
+      - a_end:
+          device: dc-spine-2
+          interface: Ethernet3
+          ipv4: "10.1.1.12/31"
+        z_end:
+          device: dc-border-1
+          interface: Ethernet2
+          ipv4: "10.1.1.13/31"
+        type: p2p
+      - a_end:
+          device: dc-spine-2
+          interface: Ethernet4
+          ipv4: "10.1.1.14/31"
+        z_end:
+          device: dc-border-2
+          interface: Ethernet2
+          ipv4: "10.1.1.15/31"
+        type: p2p
+      - a_end:
+          device: dc-border-1
+          interface: Ethernet3
+          ipv4: "10.99.0.0/31"
+        z_end:
+          device: dc-fw-1
+          interface: port1
+          ipv4: "10.99.0.1/31"
+        type: p2p
+      - a_end:
+          device: dc-border-2
+          interface: Ethernet3
+          ipv4: "10.99.0.2/31"
+        z_end:
+          device: dc-fw-2
+          interface: port1
+          ipv4: "10.99.0.3/31"
+        type: p2p
 
   branch_01:
     devices:
@@ -51,9 +308,44 @@ sites:
         platform: cisco_iosxe
         loopback0: "10.20.0.1/32"
         asn: 65100
+        interfaces:
+          - name: GigabitEthernet1
+            ipv4: "172.16.0.7/31"
+            description: "to sp-pe-1"
+            peer: sp-pe-1
+            peer_interface: GigabitEthernet3
+          - name: GigabitEthernet2
+            ipv4: "172.16.0.9/31"
+            description: "to sp-pe-2"
+            peer: sp-pe-2
+            peer_interface: GigabitEthernet3
+          - name: GigabitEthernet3
+            ipv4: "10.20.1.1/24"
+            description: "to br-host-1"
+            peer: br-host-1
+            peer_interface: eth0
       - name: br-host-1
         role: host
         platform: linux
+        interfaces:
+          - name: eth0
+            ipv4: "10.20.1.10/24"
+            description: "Branch LAN"
+
+    routing:
+      asn: 65100
+      router_id: "10.20.0.1"
+      neighbors:
+        - address: "172.16.0.6"
+          remote_as: 64500
+          description: "sp-pe-1"
+          address_families:
+            - ipv4_unicast
+        - address: "172.16.0.8"
+          remote_as: 64500
+          description: "sp-pe-2"
+          address_families:
+            - ipv4_unicast
 
   dr_west:
     devices:
@@ -62,14 +354,97 @@ sites:
         platform: arista_eos
         loopback0: "10.31.0.1/32"
         asn: 65201
+        interfaces:
+          - name: Ethernet1
+            ipv4: "10.31.1.0/31"
+            description: "to dr-leaf-2"
+            peer: dr-leaf-2
+            peer_interface: Ethernet1
+          - name: Ethernet2
+            ipv4: "10.99.0.4/31"
+            description: "to dr-fw-1"
+            peer: dr-fw-1
+            peer_interface: port1
+          - name: Ethernet3
+            description: "to dr-host-1"
+            peer: dr-host-1
+            peer_interface: eth0
+            vlan: 100
+            vni: 10100
       - name: dr-leaf-2
         role: leaf
         platform: arista_eos
         loopback0: "10.31.0.2/32"
         asn: 65202
+        interfaces:
+          - name: Ethernet1
+            ipv4: "10.31.1.1/31"
+            description: "to dr-leaf-1"
+            peer: dr-leaf-1
+            peer_interface: Ethernet1
+          - name: Ethernet2
+            ipv4: "10.99.0.6/31"
+            description: "to dr-fw-2"
+            peer: dr-fw-2
+            peer_interface: port1
       - name: dr-host-1
         role: host
         platform: linux
+        interfaces:
+          - name: eth0
+            ipv4: "10.30.1.10/24"
+            description: "DR LAN"
+
+    fabric:
+      underlay:
+        asn: 65201
+        router_id: "10.31.0.1"
+      overlay:
+        asn: 65201
+        router_id: "10.31.0.1"
+        neighbors:
+          - address: "10.31.0.2"
+            remote_as: 65201
+            description: "dr-leaf-2 EVPN"
+            address_families:
+              - evpn
+      vxlan:
+        vtep_source: "10.31.2.1/32"
+        vni_mappings:
+          - vni: 10100
+            vlan: 100
+            name: "SERVERS_DR"
+            gateway: "10.30.1.1/24"
+            subnet: "10.30.1.0/24"
+
+    links:
+      - a_end:
+          device: dr-leaf-1
+          interface: Ethernet1
+          ipv4: "10.31.1.0/31"
+        z_end:
+          device: dr-leaf-2
+          interface: Ethernet1
+          ipv4: "10.31.1.1/31"
+        type: p2p
+      - a_end:
+          device: dr-leaf-1
+          interface: Ethernet2
+          ipv4: "10.99.0.4/31"
+        z_end:
+          device: dr-fw-1
+          interface: port1
+          ipv4: "10.99.0.5/31"
+        type: p2p
+      - a_end:
+          device: dr-leaf-2
+          interface: Ethernet2
+          ipv4: "10.99.0.6/31"
+        z_end:
+          device: dr-fw-2
+          interface: port1
+          ipv4: "10.99.0.7/31"
+        type: p2p
 
 wan_transport:
   devices:
@@ -78,30 +453,168 @@ wan_transport:
       platform: cisco_iosxe
       loopback0: "172.16.0.1/32"
       asn: 65100
+      interfaces:
+        - name: GigabitEthernet1
+          ipv4: "172.16.0.0/31"
+          description: "to sp-pe-1"
+          peer: sp-pe-1
+          peer_interface: GigabitEthernet1
+        - name: GigabitEthernet2
+          ipv4: "10.99.1.1/31"
+          description: "to dc-fw-1"
+          peer: dc-fw-1
+          peer_interface: port2
+        - name: GigabitEthernet3
+          ipv4: "10.99.1.3/31"
+          description: "to dc-fw-2"
+          peer: dc-fw-2
+          peer_interface: port2
+        - name: GigabitEthernet4
+          ipv4: "172.16.0.2/31"
+          description: "to sp-pe-2"
+          peer: sp-pe-2
+          peer_interface: GigabitEthernet1
     - name: sp-pe-1
       role: pe
       platform: cisco_iosxe
       loopback0: "172.16.0.11/32"
       asn: 64500
+      interfaces:
+        - name: GigabitEthernet1
+          ipv4: "172.16.0.1/31"
+          description: "to dc-ce-1"
+          peer: dc-ce-1
+          peer_interface: GigabitEthernet1
+        - name: GigabitEthernet2
+          ipv4: "172.16.0.4/31"
+          description: "to sp-pe-2"
+          peer: sp-pe-2
+          peer_interface: GigabitEthernet2
+        - name: GigabitEthernet3
+          ipv4: "172.16.0.6/31"
+          description: "to br-ce-1"
+          peer: br-ce-1
+          peer_interface: GigabitEthernet1
+        - name: GigabitEthernet4
+          ipv4: "172.16.0.10/31"
+          description: "to dr-ce-1"
+          peer: dr-ce-1
+          peer_interface: GigabitEthernet1
     - name: sp-pe-2
       role: pe
       platform: cisco_iosxe
       loopback0: "172.16.0.12/32"
       asn: 64500
+      interfaces:
+        - name: GigabitEthernet1
+          ipv4: "172.16.0.3/31"
+          description: "to dc-ce-1"
+          peer: dc-ce-1
+          peer_interface: GigabitEthernet4
+        - name: GigabitEthernet2
+          ipv4: "172.16.0.5/31"
+          description: "to sp-pe-2"
+          peer: sp-pe-1
+          peer_interface: GigabitEthernet2
+        - name: GigabitEthernet3
+          ipv4: "172.16.0.8/31"
+          description: "to br-ce-1"
+          peer: br-ce-1
+          peer_interface: GigabitEthernet2
+        - name: GigabitEthernet4
+          ipv4: "172.16.0.12/31"
+          description: "to dr-ce-1"
+          peer: dr-ce-1
+          peer_interface: GigabitEthernet4
     - name: dr-ce-1
       role: ce
       platform: cisco_iosxe
       loopback0: "172.16.0.2/32"
       asn: 65100
+      interfaces:
+        - name: GigabitEthernet1
+          ipv4: "172.16.0.11/31"
+          description: "to sp-pe-1"
+          peer: sp-pe-1
+          peer_interface: GigabitEthernet4
+        - name: GigabitEthernet2
+          ipv4: "10.99.1.5/31"
+          description: "to dr-fw-1"
+          peer: dr-fw-1
+          peer_interface: port2
+        - name: GigabitEthernet3
+          ipv4: "10.99.1.7/31"
+          description: "to dr-fw-2"
+          peer: dr-fw-2
+          peer_interface: port2
+        - name: GigabitEthernet4
+          ipv4: "172.16.0.13/31"
+          description: "to sp-pe-2"
+          peer: sp-pe-2
+          peer_interface: GigabitEthernet4
   links:
+    - a_end:
+        device: dc-ce-1
+        interface: GigabitEthernet1
+        ipv4: "172.16.0.0/31"
+      z_end:
+        device: sp-pe-1
+        interface: GigabitEthernet1
+        ipv4: "172.16.0.1/31"
+      type: transport
+    - a_end:
+        device: dc-ce-1
+        interface: GigabitEthernet4
+        ipv4: "172.16.0.2/31"
+      z_end:
+        device: sp-pe-2
+        interface: GigabitEthernet1
+        ipv4: "172.16.0.3/31"
+      type: transport
     - a_end:
         device: sp-pe-1
         interface: GigabitEthernet2
-        ipv4: "172.16.0.100/31"
+        ipv4: "172.16.0.4/31"
       z_end:
         device: sp-pe-2
         interface: GigabitEthernet2
-        ipv4: "172.16.0.101/31"
+        ipv4: "172.16.0.5/31"
+      type: transport
+    - a_end:
+        device: sp-pe-1
+        interface: GigabitEthernet3
+        ipv4: "172.16.0.6/31"
+      z_end:
+        device: br-ce-1
+        interface: GigabitEthernet1
+        ipv4: "172.16.0.7/31"
+      type: transport
+    - a_end:
+        device: sp-pe-2
+        interface: GigabitEthernet3
+        ipv4: "172.16.0.8/31"
+      z_end:
+        device: br-ce-1
+        interface: GigabitEthernet2
+        ipv4: "172.16.0.9/31"
+      type: transport
+    - a_end:
+        device: sp-pe-1
+        interface: GigabitEthernet4
+        ipv4: "172.16.0.10/31"
+      z_end:
+        device: dr-ce-1
+        interface: GigabitEthernet1
+        ipv4: "172.16.0.11/31"
+      type: transport
+    - a_end:
+        device: sp-pe-2
+        interface: GigabitEthernet4
+        ipv4: "172.16.0.12/31"
+      z_end:
+        device: dr-ce-1
+        interface: GigabitEthernet4
+        ipv4: "172.16.0.13/31"
       type: transport
 
 security:
@@ -110,9 +623,35 @@ security:
       - name: dc-fw-1
         role: firewall
         platform: fortinet_fortios
+        interfaces:
+          - name: port1
+            ipv4: "10.99.0.1/31"
+            description: "to dc-border-1"
+            peer: dc-border-1
+            peer_interface: Ethernet3
+          - name: port2
+            ipv4: "10.99.1.0/31"
+            description: "to dc-ce-1"
+            peer: dc-ce-1
+            peer_interface: GigabitEthernet2
+          - name: port3
+            description: "HA heartbeat"
       - name: dc-fw-2
         role: firewall
         platform: fortinet_fortios
+        interfaces:
+          - name: port1
+            ipv4: "10.99.0.3/31"
+            description: "to dc-border-2"
+            peer: dc-border-2
+            peer_interface: Ethernet3
+          - name: port2
+            ipv4: "10.99.1.2/31"
+            description: "to dc-ce-1"
+            peer: dc-ce-1
+            peer_interface: GigabitEthernet3
+          - name: port3
+            description: "HA heartbeat"
     zones:
       - name: dc-trust
         type: trust
@@ -131,14 +670,46 @@ security:
           - tcp/443
           - tcp/80
           - icmp
+      - name: allow-dc-ssh
+        source_zone: dc-trust
+        destination_zone: wan-untrust
+        action: allow
+        services:
+          - tcp/22
   dr:
     firewalls:
       - name: dr-fw-1
         role: firewall
         platform: fortinet_fortios
+        interfaces:
+          - name: port1
+            ipv4: "10.99.0.5/31"
+            description: "to dr-leaf-1"
+            peer: dr-leaf-1
+            peer_interface: Ethernet2
+          - name: port2
+            ipv4: "10.99.1.4/31"
+            description: "to dr-ce-1"
+            peer: dr-ce-1
+            peer_interface: GigabitEthernet2
+          - name: port3
+            description: "HA heartbeat"
       - name: dr-fw-2
         role: firewall
         platform: fortinet_fortios
+        interfaces:
+          - name: port1
+            ipv4: "10.99.0.7/31"
+            description: "to dr-leaf-2"
+            peer: dr-leaf-2
+            peer_interface: Ethernet2
+          - name: port2
+            ipv4: "10.99.1.6/31"
+            description: "to dr-ce-1"
+            peer: dr-ce-1
+            peer_interface: GigabitEthernet3
+          - name: port3
+            description: "HA heartbeat"
     zones:
       - name: dr-trust
         type: trust
@@ -153,6 +724,10 @@ security:
         source_zone: dr-trust
         destination_zone: dr-untrust
         action: allow
+        services:
+          - tcp/443
+          - tcp/80
+          - icmp
 
 agent:
   boundary:
