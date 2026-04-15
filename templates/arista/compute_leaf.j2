@@ -3,11 +3,10 @@
 !
 hostname {{ hostname }}
 !
-vlan {{ vxlan.get('vni_mappings', [{}])[0].get('vlan', '') }}
-   name {{ vxlan.get('vni_mappings', [{}])[0].get('name', '') }}
-!
+{% set seen_vlans = [] %}
 {% for mapping in vxlan.get('vni_mappings', []) %}
-{% if mapping.vlan is defined %}
+{% if mapping.vlan is defined and mapping.vlan not in seen_vlans %}
+{% if seen_vlans.append(mapping.vlan) %}{% endif %}
 vlan {{ mapping.vlan }}
    name {{ mapping.get('name', 'VLAN_' ~ mapping.vlan) }}
 {% endif %}
@@ -19,7 +18,7 @@ interface Loopback0
 !
 interface Loopback1
    description VTEP source
-   ip address {{ ip_no_mask(vxlan.get('vtep_source', '')) }}/32
+   ip address {{ ip_no_mask(vtep_ip) }}/32
 !
 {% for iface in interfaces %}
 {% if iface.get('ipv4') %}
@@ -69,6 +68,7 @@ router bgp {{ asn }}
 {% endfor %}
       network {{ loopback0_ip }}/{{ loopback0_mask }}
    !
+{% if spines %}
    ! Overlay iBGP EVPN to spine route reflectors
 {% for spine in spines %}
    neighbor {{ ip_no_mask(spine.loopback0) }} remote-as {{ spine.asn }}
@@ -81,11 +81,25 @@ router bgp {{ asn }}
 {% for spine in spines %}
       neighbor {{ ip_no_mask(spine.loopback0) }} activate
 {% endfor %}
+{% elif evpn_peers %}
+   ! Overlay EVPN to peer leaves (collapsed design — no spines)
+{% for peer in evpn_peers %}
+   neighbor {{ ip_no_mask(peer.loopback0) }} remote-as {{ overlay_asn }}
+   neighbor {{ ip_no_mask(peer.loopback0) }} update-source Loopback0
+   neighbor {{ ip_no_mask(peer.loopback0) }} description {{ peer.name }} EVPN
+   neighbor {{ ip_no_mask(peer.loopback0) }} send-community extended
+{% endfor %}
+   !
+   address-family evpn
+{% for peer in evpn_peers %}
+      neighbor {{ ip_no_mask(peer.loopback0) }} activate
+{% endfor %}
+{% endif %}
    !
 {% for mapping in vxlan.get('vni_mappings', []) %}
    vlan {{ mapping.vlan }}
       rd auto
-      route-target both {{ asn }}:{{ mapping.vni }}
+      route-target both {{ overlay_asn }}:{{ mapping.vni }}
       redistribute learned
 {% endfor %}
 !

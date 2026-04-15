@@ -179,6 +179,7 @@ DC_LEAF_1 = _make_device(
         "agent_boundary": "managed",
         "bgp_config": {"asn": 65001, "role": "client"},
         "vxlan_config": {
+            "vtep_ip": "10.1.2.11/32",
             "vtep_source_interface": "Loopback1",
             "vni_mappings": [
                 {"vni": 10100, "vlan": 100, "name": "SERVERS_A", "subnet": "10.10.1.0/24"}
@@ -197,6 +198,7 @@ DC_LEAF_2 = _make_device(
         "agent_boundary": "managed",
         "bgp_config": {"asn": 65002, "role": "client"},
         "vxlan_config": {
+            "vtep_ip": "10.1.2.12/32",
             "vtep_source_interface": "Loopback1",
             "vni_mappings": [
                 {"vni": 10200, "vlan": 200, "name": "SERVERS_B", "subnet": "10.10.2.0/24"}
@@ -211,7 +213,11 @@ DC_BORDER_1 = _make_device(
     "dc-east",
     "border-leaf",
     "arista_eos",
-    config_context={"agent_boundary": "managed", "bgp_config": {"asn": 65003}},
+    config_context={
+        "agent_boundary": "managed",
+        "bgp_config": {"asn": 65003},
+        "observed_interfaces": ["Ethernet3"],
+    },
     custom_fields={"bgp_asn": 65003, "evpn_role": "none"},
 )
 DC_BORDER_2 = _make_device(
@@ -220,7 +226,11 @@ DC_BORDER_2 = _make_device(
     "dc-east",
     "border-leaf",
     "arista_eos",
-    config_context={"agent_boundary": "managed", "bgp_config": {"asn": 65004}},
+    config_context={
+        "agent_boundary": "managed",
+        "bgp_config": {"asn": 65004},
+        "observed_interfaces": ["Ethernet3"],
+    },
     custom_fields={"bgp_asn": 65004, "evpn_role": "none"},
 )
 DC_HOST_1 = _make_device(
@@ -319,7 +329,11 @@ DR_LEAF_1 = _make_device(
     "dr-west",
     "leaf",
     "arista_eos",
-    config_context={"agent_boundary": "managed", "bgp_config": {"asn": 65201}},
+    config_context={
+        "agent_boundary": "managed",
+        "bgp_config": {"asn": 65201},
+        "observed_interfaces": ["Ethernet2"],
+    },
     custom_fields={"bgp_asn": 65201, "evpn_role": "client"},
 )
 DR_LEAF_2 = _make_device(
@@ -328,7 +342,11 @@ DR_LEAF_2 = _make_device(
     "dr-west",
     "leaf",
     "arista_eos",
-    config_context={"agent_boundary": "managed", "bgp_config": {"asn": 65202}},
+    config_context={
+        "agent_boundary": "managed",
+        "bgp_config": {"asn": 65202},
+        "observed_interfaces": ["Ethernet2"],
+    },
     custom_fields={"bgp_asn": 65202, "evpn_role": "client"},
 )
 DR_FW_1 = _make_device(
@@ -613,12 +631,11 @@ class TestAgentBoundary:
         spec = generate_spec(mock_api)
         observed = spec["agent"]["boundary"]["observed"]
         assert len(observed) == 4
-        # Must include dc-border-1:external, dc-border-2:external,
-        # dr-leaf-1:external, dr-leaf-2:external
-        assert "dc-border-1:external" in observed
-        assert "dc-border-2:external" in observed
-        assert "dr-leaf-1:external" in observed
-        assert "dr-leaf-2:external" in observed
+        # Must include observed_interfaces from config context
+        assert "dc-border-1:Ethernet3" in observed
+        assert "dc-border-2:Ethernet3" in observed
+        assert "dr-leaf-1:Ethernet2" in observed
+        assert "dr-leaf-2:Ethernet2" in observed
 
     def test_excluded_devices(self, mock_api: MagicMock) -> None:
         """8 excluded devices (firewalls, CEs, PEs)."""
@@ -745,8 +762,16 @@ class TestVXLAN:
         spec = generate_spec(mock_api)
         fabric = spec["sites"]["dc_east"].get("fabric", {})
         vxlan = fabric.get("vxlan", {})
-        vtep_source = vxlan.get("vtep_source", "")
-        assert vtep_source.startswith("10.1.2."), f"VTEP source {vtep_source} not in 10.1.2.0/24"
+        vtep_sources = vxlan.get("vtep_sources", vxlan.get("vtep_source", ""))
+        if isinstance(vtep_sources, dict):
+            for dev_name, vtep_ip in vtep_sources.items():
+                assert vtep_ip.startswith("10.1.2."), (
+                    f"VTEP {dev_name} source {vtep_ip} not in 10.1.2.0/24"
+                )
+        else:
+            assert vtep_sources.startswith("10.1.2."), (
+                f"VTEP source {vtep_sources} not in 10.1.2.0/24"
+            )
 
 
 class TestSecurity:

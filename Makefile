@@ -29,15 +29,9 @@ lint-fix:
 validate:
 	pytest tests/unit/test_schema.py::TestGeneratedSpecFile -v
 
-# Generate YAML spec from NetBox (requires NETBOX_URL and NETBOX_TOKEN env vars)
+# Generate YAML spec from NetBox (reads credentials from .env)
 generate-spec:
-ifndef NETBOX_URL
-	$(error NETBOX_URL is not set. Export it before running: export NETBOX_URL=http://localhost:8000)
-endif
-ifndef NETBOX_TOKEN
-	$(error NETBOX_TOKEN is not set. Export it before running: export NETBOX_TOKEN=<your-v2-token>)
-endif
-	python generator/netbox_to_spec.py
+	python -m generator.netbox_to_spec
 
 # Render per-device configs from spec
 generate-configs:

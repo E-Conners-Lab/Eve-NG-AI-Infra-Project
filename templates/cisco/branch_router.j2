@@ -10,7 +10,9 @@ interface Loopback0
 {% for iface in interfaces %}
 interface {{ iface.name }}
  description {{ iface.description | default('') }}
+{% if iface.get('ipv4') %}
  ip address {{ ip_no_mask(iface.ipv4) }} {{ cidr_to_subnet(ip_mask(iface.ipv4) | int) }}
+{% endif %}
  no shutdown
 !
 {% endfor %}

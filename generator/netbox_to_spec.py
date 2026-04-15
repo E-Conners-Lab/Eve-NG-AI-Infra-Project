@@ -1,258 +1,345 @@
 """NetBox-to-YAML spec generator.
 
 Queries the NetBox REST API via pynetbox and produces a declarative YAML spec
-matching the AI Infrastructure Lab JSON schema. The spec is the single source
-of truth for config generation, deployment, and validation.
+matching the AI Infrastructure Lab JSON schema.
+
+ALL data comes from NetBox — config contexts carry fabric, VXLAN, security,
+and agent boundary metadata. If it's not in NetBox, it doesn't exist.
 
 Usage:
-    python generator/netbox_to_spec.py          # requires NETBOX_URL + NETBOX_TOKEN env vars
-
-Or programmatically:
-    from generator.netbox_to_spec import generate_spec
-    import pynetbox
-    api = pynetbox.api(url, token=token)
-    spec = generate_spec(api)
+    python generator/netbox_to_spec.py    # uses .env for credentials
 """
 
 from __future__ import annotations
 
-import os
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
 import yaml
 
-# Site slugs this generator cares about — matches the 3-site lab topology.
+# Site slugs this generator cares about.
 SITE_SLUGS = ("dc-east", "branch-01", "dr-west")
 
-# Slug-to-spec-key mapping (NetBox uses hyphens, spec uses underscores).
+# Slug-to-spec-key mapping (NetBox hyphens → spec underscores).
 SITE_KEY_MAP = {
     "dc-east": "dc_east",
     "branch-01": "branch_01",
     "dr-west": "dr_west",
 }
 
-# Roles that belong in the WAN transport section (not in site devices).
 WAN_ROLES = ("ce", "pe")
-
-# Roles that belong in the security section.
 SECURITY_ROLES = ("firewall",)
-
-# Devices with these roles and in these sites provide "observed" external interfaces.
-OBSERVED_DEVICES = {
-    "dc-border-1",
-    "dc-border-2",
-    "dr-leaf-1",
-    "dr-leaf-2",
-}
-
-# Host devices — used for reachability matrix.
 HOST_ROLE = "host"
 
 
 def generate_spec(api: object) -> dict:
-    """Query NetBox and return the full spec as a dict.
+    """Query NetBox and return the full spec as a dict."""
 
-    Args:
-        api: A pynetbox.api instance (or compatible mock).
-
-    Returns:
-        The spec dictionary, ready for YAML serialization.
-
-    Raises:
-        ConnectionError: If NetBox is unreachable.
-    """
-    # ------------------------------------------------------------------
     # 1. Pull all data from NetBox
-    # ------------------------------------------------------------------
     list(api.dcim.sites.all())  # validate connectivity
     all_devices = list(api.dcim.devices.all())
     all_interfaces = list(api.dcim.interfaces.all())
     all_ips = list(api.ipam.ip_addresses.all())
-    list(api.ipam.prefixes.all())  # prefixes used for future addressing validation
     all_cables = list(api.dcim.cables.all())
 
-    # Index IP addresses by interface ID for fast lookup.
-    ip_by_interface: dict[int, list] = {}
+    # Index IPs by interface ID
+    ip_by_iface: dict[int, list] = {}
     for ip in all_ips:
-        iface_id = ip.assigned_object_id
-        ip_by_interface.setdefault(iface_id, []).append(ip)
+        ip_by_iface.setdefault(ip.assigned_object_id, []).append(ip)
 
-    # Index interfaces by device ID.
-    ifaces_by_device: dict[int, list] = {}
+    # Index interfaces by device ID
+    ifaces_by_dev: dict[int, list] = {}
     for iface in all_interfaces:
-        ifaces_by_device.setdefault(iface.device.id, []).append(iface)
+        ifaces_by_dev.setdefault(iface.device.id, []).append(iface)
 
-    # Index cables: (device_name, interface_name) -> (peer_device, peer_interface)
+    # Index cables: (device, interface) → (peer_device, peer_interface)
     cable_peers: dict[tuple[str, str], tuple[str, str]] = {}
     for cable in all_cables:
-        a_terms = cable.a_terminations
-        b_terms = cable.b_terminations
-        if not a_terms or not b_terms:
+        a, b = cable.a_terminations, cable.b_terminations
+        if not a or not b:
             continue
-        a_key = (a_terms[0].device.name, a_terms[0].name)
-        z_key = (b_terms[0].device.name, b_terms[0].name)
-        cable_peers[a_key] = (b_terms[0].device.name, b_terms[0].name)
-        cable_peers[z_key] = (a_terms[0].device.name, a_terms[0].name)
+        cable_peers[(a[0].device.name, a[0].name)] = (b[0].device.name, b[0].name)
+        cable_peers[(b[0].device.name, b[0].name)] = (a[0].device.name, a[0].name)
 
-    # ------------------------------------------------------------------
-    # 2. Classify devices by site and role
-    # ------------------------------------------------------------------
-    site_devices: dict[str, list] = {slug: [] for slug in SITE_SLUGS}
+    # 2. Classify devices
+    site_devices: dict[str, list] = {s: [] for s in SITE_SLUGS}
     wan_devices: list = []
     security_devices: dict[str, list] = {"dc": [], "dr": []}
-    all_host_devices: list = []
+    all_hosts: list = []
 
     for dev in all_devices:
-        site_slug = dev.site.slug
-        if site_slug not in SITE_SLUGS:
+        slug = dev.site.slug
+        if slug not in SITE_SLUGS:
             continue
-
-        role_slug = dev.role.slug
-
-        if role_slug in SECURITY_ROLES:
-            # Firewalls go to security section.
-            zone = "dr" if site_slug == "dr-west" else "dc"
-            security_devices[zone].append(dev)
-        elif role_slug in WAN_ROLES and dev.config_context.get("agent_boundary") == "excluded":
-            # WAN transport = excluded CE/PE devices (dc-ce-1, sp-pe-1/2, dr-ce-1).
-            # Managed CE devices like br-ce-1 stay in their site.
+        role = dev.role.slug
+        if role in SECURITY_ROLES:
+            security_devices["dr" if slug == "dr-west" else "dc"].append(dev)
+        elif role in WAN_ROLES and dev.config_context.get("agent_boundary") == "excluded":
             wan_devices.append(dev)
         else:
-            site_devices[site_slug].append(dev)
+            site_devices[slug].append(dev)
+        if role == HOST_ROLE:
+            all_hosts.append(dev)
 
-        if role_slug == HOST_ROLE:
-            all_host_devices.append(dev)
-
-    # ------------------------------------------------------------------
-    # 3. Build device spec entries
-    # ------------------------------------------------------------------
-    def _build_device_entry(dev: object) -> dict:
-        """Convert a NetBox device to a spec device dict."""
+    # 3. Device entry builder
+    def _device(dev: object) -> dict:
         entry: dict = {
             "name": dev.name,
             "role": dev.role.slug,
             "platform": dev.platform.slug,
         }
 
-        # Build interfaces list with IPs and peer info from cables.
-        device_ifaces = ifaces_by_device.get(dev.id, [])
-        spec_interfaces: list[dict] = []
-
-        for iface in device_ifaces:
-            iface_ips = ip_by_interface.get(iface.id, [])
-
-            # Set loopback0 at the device level (not in interfaces list).
-            if iface.name == "Loopback0" and iface_ips:
-                entry["loopback0"] = iface_ips[0].address
+        # Interfaces with IPs and cable peers
+        spec_ifaces: list[dict] = []
+        for iface in ifaces_by_dev.get(dev.id, []):
+            ips = ip_by_iface.get(iface.id, [])
+            if iface.name == "Loopback0" and ips:
+                entry["loopback0"] = ips[0].address
                 continue
 
-            # Build interface entry.
-            iface_entry: dict = {"name": iface.name}
-            if iface_ips:
-                iface_entry["ipv4"] = iface_ips[0].address
+            ie: dict = {"name": iface.name}
+            if ips:
+                ie["ipv4"] = ips[0].address
             if iface.description:
-                iface_entry["description"] = iface.description
+                ie["description"] = iface.description
 
-            # Resolve peer from cable index.
-            cable_key = (dev.name, iface.name)
-            if cable_key in cable_peers:
-                peer_dev, peer_iface = cable_peers[cable_key]
-                iface_entry["peer"] = peer_dev
-                iface_entry["peer_interface"] = peer_iface
+            peer = cable_peers.get((dev.name, iface.name))
+            if peer:
+                ie["peer"] = peer[0]
+                ie["peer_interface"] = peer[1]
 
-            # Only include interfaces that have an IP or a cable (skip empty mgmt, etc.)
-            if "ipv4" in iface_entry or "peer" in iface_entry:
-                spec_interfaces.append(iface_entry)
+            # VLAN/VNI from config context mappings
+            vxlan_cfg = dev.config_context.get("vxlan_config", {})
+            for m in vxlan_cfg.get("vni_mappings", []):
+                if iface.description and m.get("name", "") in iface.description:
+                    ie["vlan"] = m["vlan"]
+                    ie["vni"] = m["vni"]
+                    break
 
-        if spec_interfaces:
-            entry["interfaces"] = spec_interfaces
+            if "ipv4" in ie or "peer" in ie:
+                spec_ifaces.append(ie)
 
-        # ASN from config context or custom fields.
-        asn = None
-        bgp_config = dev.config_context.get("bgp_config", {})
-        if bgp_config and "asn" in bgp_config:
-            asn = bgp_config["asn"]
-        elif dev.custom_fields.get("bgp_asn"):
-            asn = dev.custom_fields["bgp_asn"]
+        if spec_ifaces:
+            entry["interfaces"] = spec_ifaces
 
-        if asn is not None:
-            entry["asn"] = asn
+        # ASN from config context
+        bgp = dev.config_context.get("bgp_config", {})
+        if bgp.get("asn"):
+            entry["asn"] = bgp["asn"]
 
         return entry
 
-    # ------------------------------------------------------------------
-    # 4. Build site sections
-    # ------------------------------------------------------------------
+    # 4. Build fabric config from config contexts
+    def _fabric(devices: list) -> dict:
+        fabric: dict = {}
+        vni_all: list[dict] = []
+        vtep_sources: dict[str, str] = {}
+        overlay: dict = {}
+        underlay_asn = None
+
+        for dev in devices:
+            ctx = dev.config_context
+
+            # Underlay ASN (from spines)
+            bgp = ctx.get("bgp_config", {})
+            if bgp.get("role") == "rr" and underlay_asn is None:
+                underlay_asn = bgp.get("asn")
+                overlay["asn"] = underlay_asn
+                # Resolve router_id from Loopback0 IP
+                lo_ip = ""
+                for lo_iface in ifaces_by_dev.get(dev.id, []):
+                    if lo_iface.name == "Loopback0":
+                        lo_ips = ip_by_iface.get(lo_iface.id, [])
+                        if lo_ips:
+                            lo_ip = lo_ips[0].address.split("/")[0]
+                        break
+                overlay["router_id"] = lo_ip
+
+            # EVPN overlay neighbors (from spines or peer leaves)
+            evpn = ctx.get("evpn_overlay", {})
+            if evpn.get("neighbors") and "neighbors" not in overlay:
+                overlay["neighbors"] = []
+            for n in evpn.get("neighbors", []):
+                # Avoid duplicates
+                existing_addrs = {x["address"] for x in overlay.get("neighbors", [])}
+                if n["address"] not in existing_addrs:
+                    overlay.setdefault("neighbors", []).append(
+                        {
+                            "address": n["address"],
+                            "remote_as": n["remote_as"],
+                            "description": n.get("description", ""),
+                            "address_families": ["evpn"],
+                        }
+                    )
+
+            # VXLAN config
+            vxlan = ctx.get("vxlan_config", {})
+            if vxlan.get("vtep_ip"):
+                vtep_sources[dev.name] = vxlan["vtep_ip"]
+            for m in vxlan.get("vni_mappings", []):
+                # Deduplicate by VNI
+                if not any(v["vni"] == m["vni"] for v in vni_all):
+                    entry = {"vni": m["vni"], "vlan": m["vlan"]}
+                    if "name" in m:
+                        entry["name"] = m["name"]
+                    if "gateway" in m:
+                        entry["gateway"] = m["gateway"]
+                    if "subnet" in m:
+                        entry["subnet"] = m["subnet"]
+                    vni_all.append(entry)
+
+        if underlay_asn:
+            fabric["underlay"] = {"asn": underlay_asn}
+        if overlay:
+            fabric["overlay"] = overlay
+        if vtep_sources or vni_all:
+            vxlan_spec: dict = {}
+            if vtep_sources:
+                vxlan_spec["vtep_sources"] = vtep_sources
+            if vni_all:
+                vxlan_spec["vni_mappings"] = vni_all
+            fabric["vxlan"] = vxlan_spec
+
+        return fabric
+
+    # 5. Build security from config contexts
+    def _security(fw_devices: list) -> tuple[list, list]:
+        zones: list[dict] = []
+        policies: list[dict] = []
+        seen_zones: set[str] = set()
+        seen_policies: set[str] = set()
+
+        for dev in fw_devices:
+            ctx = dev.config_context
+            for z in ctx.get("security_zones", []):
+                if z["name"] not in seen_zones:
+                    zones.append(z)
+                    seen_zones.add(z["name"])
+            for p in ctx.get("security_policies", []):
+                if p["name"] not in seen_policies:
+                    policies.append(p)
+                    seen_policies.add(p["name"])
+
+        return zones, policies
+
+    # 6. Build routing section for branch
+    def _branch_routing(devices: list) -> dict:
+        for dev in devices:
+            bgp = dev.config_context.get("bgp_config", {})
+            if bgp.get("asn") and dev.role.slug == "ce":
+                lo = None
+                for iface in ifaces_by_dev.get(dev.id, []):
+                    if iface.name == "Loopback0":
+                        ips = ip_by_iface.get(iface.id, [])
+                        if ips:
+                            lo = ips[0].address.split("/")[0]
+                        break
+
+                return {
+                    "asn": bgp["asn"],
+                    "router_id": lo or "",
+                }
+        return {}
+
+    # 7. Assemble sites
     sites_spec: dict = {}
     for site_slug, spec_key in SITE_KEY_MAP.items():
-        devices = site_devices.get(site_slug, [])
-        if not devices:
+        devs = site_devices.get(site_slug, [])
+        if not devs:
             continue
 
-        site_entry: dict = {
-            "devices": [_build_device_entry(d) for d in devices],
-        }
+        site_entry: dict = {"devices": [_device(d) for d in devs]}
 
-        # Add fabric config for DC and DR sites.
         if spec_key in ("dc_east", "dr_west"):
-            fabric = _build_fabric_config(devices, ifaces_by_device, ip_by_interface)
-            if fabric:
-                site_entry["fabric"] = fabric
+            fab = _fabric(devs)
+            if fab:
+                site_entry["fabric"] = fab
+
+        if spec_key == "branch_01":
+            routing = _branch_routing(devs)
+            if routing:
+                site_entry["routing"] = routing
+
+        # Build links from device interface peers
+        links: list[dict] = []
+        seen: set[tuple] = set()
+        for d in site_entry["devices"]:
+            for iface in d.get("interfaces", []):
+                peer = iface.get("peer")
+                piface = iface.get("peer_interface")
+                if not peer or not piface:
+                    continue
+                key = tuple(sorted([(d["name"], iface["name"]), (peer, piface)]))
+                if key in seen:
+                    continue
+                seen.add(key)
+                link: dict = {
+                    "a_end": {"device": d["name"], "interface": iface["name"]},
+                    "z_end": {"device": peer, "interface": piface},
+                    "type": "p2p",
+                }
+                if "ipv4" in iface:
+                    link["a_end"]["ipv4"] = iface["ipv4"]
+                links.append(link)
+        if links:
+            site_entry["links"] = links
 
         sites_spec[spec_key] = site_entry
 
-    # ------------------------------------------------------------------
-    # 5. Build WAN transport section
-    # ------------------------------------------------------------------
+    # 8. WAN transport
     wan_spec: dict = {}
     if wan_devices:
-        wan_spec["devices"] = [_build_device_entry(d) for d in wan_devices]
-        wan_links = _build_wan_links(all_cables, wan_devices)
-        if wan_links:
-            wan_spec["links"] = wan_links
+        wan_devs = [_device(d) for d in wan_devices]
+        wan_spec["devices"] = wan_devs
+        # Build WAN links
+        wlinks: list[dict] = []
+        wseen: set[tuple] = set()
+        wan_names = {d["name"] for d in wan_devs}
+        for d in wan_devs:
+            for iface in d.get("interfaces", []):
+                peer = iface.get("peer")
+                piface = iface.get("peer_interface")
+                if not peer or not piface or peer not in wan_names:
+                    continue
+                key = tuple(sorted([(d["name"], iface["name"]), (peer, piface)]))
+                if key in wseen:
+                    continue
+                wseen.add(key)
+                wlinks.append(
+                    {
+                        "a_end": {"device": d["name"], "interface": iface["name"]},
+                        "z_end": {"device": peer, "interface": piface},
+                        "type": "transport",
+                    }
+                )
+        if wlinks:
+            wan_spec["links"] = wlinks
 
-    # ------------------------------------------------------------------
-    # 6. Build security section
-    # ------------------------------------------------------------------
+    # 9. Security
     security_spec: dict = {}
-    for zone, fw_devices in security_devices.items():
-        if not fw_devices:
+    for zone, fws in security_devices.items():
+        if not fws:
             continue
-        zone_entry: dict = {
-            "firewalls": [_build_device_entry(d) for d in fw_devices],
-        }
-        # Build zones and policies from config contexts.
-        zones, policies = _build_security_policies(fw_devices, zone)
+        zone_entry: dict = {"firewalls": [_device(d) for d in fws]}
+        zones, policies = _security(fws)
         if zones:
             zone_entry["zones"] = zones
         if policies:
             zone_entry["policies"] = policies
         security_spec[zone] = zone_entry
 
-    # ------------------------------------------------------------------
-    # 7. Build agent boundary
-    # ------------------------------------------------------------------
-    managed = []
-    observed = []
-    excluded = []
-
+    # 10. Agent boundary — from config contexts, not hardcoded
+    managed, observed, excluded = [], [], []
     for dev in all_devices:
-        if dev.site.slug not in SITE_SLUGS:
+        if dev.site.slug not in SITE_SLUGS or dev.role.slug == HOST_ROLE:
             continue
-
-        # Hosts are endpoints, not network devices — skip agent boundary.
-        if dev.role.slug == HOST_ROLE:
-            continue
-
-        boundary = dev.config_context.get("agent_boundary", "excluded")
-
+        ctx = dev.config_context
+        boundary = ctx.get("agent_boundary", "excluded")
         if boundary == "managed":
             managed.append(dev.name)
-            # Check if this device also has observed external interfaces.
-            if dev.name in OBSERVED_DEVICES:
-                observed.append(f"{dev.name}:external")
+            for obs_iface in ctx.get("observed_interfaces", []):
+                observed.append(f"{dev.name}:{obs_iface}")
         else:
             excluded.append(dev.name)
 
@@ -264,14 +351,18 @@ def generate_spec(api: object) -> dict:
         },
     }
 
-    # ------------------------------------------------------------------
-    # 8. Build reachability matrix
-    # ------------------------------------------------------------------
-    reachability = _build_reachability_matrix(all_host_devices)
+    # Agent thresholds + compliance from config context (anchor: dc-spine-1)
+    for dev in all_devices:
+        ctx = dev.config_context
+        if "agent_thresholds" in ctx:
+            agent_spec["thresholds"] = ctx["agent_thresholds"]
+        if "compliance_rules" in ctx:
+            agent_spec["compliance_rules"] = ctx["compliance_rules"]
 
-    # ------------------------------------------------------------------
-    # 9. Assemble the full spec
-    # ------------------------------------------------------------------
+    # 11. Reachability matrix
+    reachability = _build_reachability_matrix(all_hosts)
+
+    # 12. Assemble
     spec: dict = {
         "metadata": {
             "version": "1.0.0",
@@ -281,155 +372,33 @@ def generate_spec(api: object) -> dict:
         },
         "sites": sites_spec,
     }
-
     if wan_spec:
         spec["wan_transport"] = wan_spec
     if security_spec:
         spec["security"] = security_spec
-
     spec["agent"] = agent_spec
-
     if reachability:
         spec["tests"] = {"reachability_matrix": reachability}
 
     return spec
 
 
-def _build_fabric_config(devices: list, ifaces_by_device: dict, ip_by_interface: dict) -> dict:
-    """Build EVPN-VXLAN fabric config from device config contexts."""
-    vni_mappings: list[dict] = []
-    vtep_source: str | None = None
-
-    for dev in devices:
-        vxlan_cfg = dev.config_context.get("vxlan_config", {})
-        if not vxlan_cfg:
-            continue
-
-        # Collect VNI mappings.
-        for mapping in vxlan_cfg.get("vni_mappings", []):
-            entry = {"vni": mapping["vni"], "vlan": mapping["vlan"]}
-            if "name" in mapping:
-                entry["name"] = mapping["name"]
-            if "subnet" in mapping:
-                entry["gateway"] = mapping["subnet"].replace(".0/", ".1/")
-                entry["subnet"] = mapping["subnet"]
-            vni_mappings.append(entry)
-
-        # Get VTEP source from Loopback1 IP.
-        if vtep_source is None:
-            vtep_iface_name = vxlan_cfg.get("vtep_source_interface", "Loopback1")
-            device_ifaces = ifaces_by_device.get(dev.id, [])
-            for iface in device_ifaces:
-                if iface.name == vtep_iface_name:
-                    iface_ips = ip_by_interface.get(iface.id, [])
-                    if iface_ips:
-                        vtep_source = iface_ips[0].address
-                    break
-
-    if not vni_mappings and vtep_source is None:
-        return {}
-
-    fabric: dict = {}
-    vxlan: dict = {}
-    if vtep_source:
-        vxlan["vtep_source"] = vtep_source
-    if vni_mappings:
-        vxlan["vni_mappings"] = vni_mappings
-    if vxlan:
-        fabric["vxlan"] = vxlan
-
-    return fabric
-
-
-def _build_wan_links(cables: list, wan_devices: list) -> list[dict]:
-    """Build WAN link entries from cables connecting WAN devices."""
-    wan_names = {d.name for d in wan_devices}
-    links = []
-
-    for cable in cables:
-        a_terms = cable.a_terminations
-        b_terms = cable.b_terminations
-        if not a_terms or not b_terms:
-            continue
-
-        a_dev = a_terms[0].device.name
-        z_dev = b_terms[0].device.name
-
-        # Only include cables where both ends are WAN devices.
-        if a_dev in wan_names and z_dev in wan_names:
-            links.append(
-                {
-                    "a_end": {
-                        "device": a_dev,
-                        "interface": a_terms[0].name,
-                    },
-                    "z_end": {
-                        "device": z_dev,
-                        "interface": b_terms[0].name,
-                    },
-                    "type": "transport",
-                }
-            )
-
-    return links
-
-
-def _build_security_policies(fw_devices: list, zone_prefix: str) -> tuple[list[dict], list[dict]]:
-    """Build security zones and policies from firewall config contexts."""
-    zones = [
-        {"name": f"{zone_prefix}-trust", "type": "trust", "interfaces": ["port1"]},
-        {
-            "name": f"{zone_prefix}-untrust" if zone_prefix == "dr" else "wan-untrust",
-            "type": "untrust",
-            "interfaces": ["port2"],
-        },
-    ]
-
-    policies = [
-        {
-            "name": f"allow-{zone_prefix}-outbound",
-            "source_zone": f"{zone_prefix}-trust",
-            "destination_zone": f"{zone_prefix}-untrust" if zone_prefix == "dr" else "wan-untrust",
-            "action": "allow",
-        },
-    ]
-
-    return zones, policies
-
-
-def _build_reachability_matrix(host_devices: list) -> list[dict]:
-    """Build reachability test matrix from host devices.
-
-    Creates pairwise tests between hosts across different sites.
-    """
-    if len(host_devices) < 2:
+def _build_reachability_matrix(hosts: list) -> list[dict]:
+    """Build reachability test matrix from host devices."""
+    if len(hosts) < 2:
         return []
-
+    labels = {"dc-east": "DC", "branch-01": "Branch", "dr-west": "DR"}
     matrix: list[dict] = []
-    site_labels = {
-        "dc-east": "DC",
-        "branch-01": "Branch",
-        "dr-west": "DR",
-    }
-
-    for i, src in enumerate(host_devices):
-        for dst in host_devices[i + 1 :]:
-            src_site = site_labels.get(src.site.slug, src.site.slug)
-            dst_site = site_labels.get(dst.site.slug, dst.site.slug)
-
-            if src.site.slug == dst.site.slug:
-                desc = f"Intra-site {src_site}: {src.name} to {dst.name}"
-            else:
-                desc = f"{src_site} to {dst_site}: {src.name} to {dst.name}"
-
-            matrix.append(
-                {
-                    "source": src.name,
-                    "destination": dst.name,
-                    "description": desc,
-                }
+    for i, src in enumerate(hosts):
+        for dst in hosts[i + 1 :]:
+            s = labels.get(src.site.slug, src.site.slug)
+            d = labels.get(dst.site.slug, dst.site.slug)
+            desc = (
+                f"Intra-site {s}: {src.name} to {dst.name}"
+                if src.site.slug == dst.site.slug
+                else f"{s} to {d}: {src.name} to {dst.name}"
             )
-
+            matrix.append({"source": src.name, "destination": dst.name, "description": desc})
     return matrix
 
 
@@ -444,17 +413,10 @@ def main() -> None:
     """CLI entrypoint — generate spec from live NetBox."""
     import pynetbox
 
-    url = os.environ.get("NETBOX_URL")
-    token = os.environ.get("NETBOX_TOKEN")
+    from scripts.credentials import require_credentials
 
-    if not url:
-        print("ERROR: NETBOX_URL environment variable is not set.", file=sys.stderr)
-        sys.exit(1)
-    if not token:
-        print("ERROR: NETBOX_TOKEN environment variable is not set.", file=sys.stderr)
-        sys.exit(1)
-
-    api = pynetbox.api(url, token=token)
+    creds = require_credentials("netbox_url", "netbox_token")
+    api = pynetbox.api(creds.netbox_url, token=creds.netbox_token)
 
     try:
         spec = generate_spec(api)
@@ -462,29 +424,22 @@ def main() -> None:
         print(f"ERROR: Failed to generate spec from NetBox: {e}", file=sys.stderr)
         sys.exit(1)
 
-    # Count devices across all sections.
-    device_count = 0
-    for site_key in spec.get("sites", {}):
-        device_count += len(spec["sites"][site_key].get("devices", []))
-    for zone in spec.get("security", {}):
-        device_count += len(spec["security"][zone].get("firewalls", []))
-    device_count += len(spec.get("wan_transport", {}).get("devices", []))
+    # Count devices
+    count = 0
+    for sk in spec.get("sites", {}):
+        count += len(spec["sites"][sk].get("devices", []))
+    for z in spec.get("security", {}):
+        count += len(spec["security"][z].get("firewalls", []))
+    count += len(spec.get("wan_transport", {}).get("devices", []))
 
-    site_count = len(spec.get("sites", {}))
-
-    if device_count == 0:
-        print(
-            "WARNING: NetBox returned 0 lab devices. The expected sites "
-            "(dc-east, branch-01, dr-west) may not be populated yet.",
-            file=sys.stderr,
-        )
-        print("See docs/netbox-data-model.md for the population checklist.", file=sys.stderr)
+    if count == 0:
+        print("WARNING: NetBox returned 0 lab devices.", file=sys.stderr)
         sys.exit(1)
 
-    output_path = Path(__file__).parent.parent / "specs" / "generated" / "lab_spec.yaml"
-    write_spec(spec, output_path)
-    print(f"Generated spec with {device_count} devices across {site_count} sites")
-    print(f"Output: {output_path}")
+    output = Path(__file__).parent.parent / "specs" / "generated" / "lab_spec.yaml"
+    write_spec(spec, output)
+    print(f"Generated spec with {count} devices across {len(spec.get('sites', {}))} sites")
+    print(f"Output: {output}")
 
 
 if __name__ == "__main__":

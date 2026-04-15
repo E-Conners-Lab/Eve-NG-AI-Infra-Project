@@ -189,8 +189,28 @@ def _build_context(spec: dict, device: dict, site_key: str, section: str) -> dic
         ctx["overlay"] = site_data.get("fabric", {}).get("overlay", {})
         ctx["vxlan"] = site_data.get("fabric", {}).get("vxlan", {})
 
+        # Per-device VTEP source IP (from vtep_sources map, falling back to vtep_source)
+        vxlan_cfg = site_data.get("fabric", {}).get("vxlan", {})
+        vtep_sources = vxlan_cfg.get("vtep_sources", {})
+        ctx["vtep_ip"] = vtep_sources.get(device["name"], vxlan_cfg.get("vtep_source", ""))
+
+        # Overlay ASN for consistent route-targets across all leaves in a fabric
+        ctx["overlay_asn"] = (
+            site_data.get("fabric", {}).get("overlay", {}).get("asn", device.get("asn"))
+        )
+
         # Collect all spine devices in this site for leaf/border templates
         ctx["spines"] = [d for d in site_data.get("devices", []) if d["role"] == "spine"]
+
+        # For collapsed designs (no spines): collect peer leaves for EVPN peering
+        if not ctx["spines"]:
+            ctx["evpn_peers"] = [
+                d
+                for d in site_data.get("devices", [])
+                if d["role"] == "leaf" and d["name"] != device["name"]
+            ]
+        else:
+            ctx["evpn_peers"] = []
 
     # Routing config for branch
     if site_key == "branch_01" and section == "site":

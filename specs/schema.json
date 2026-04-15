@@ -230,6 +230,11 @@
       "type": "object",
       "properties": {
         "vtep_source": { "$ref": "#/$defs/ipv4_address" },
+        "vtep_sources": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/ipv4_address" },
+          "description": "Per-device VTEP source IPs keyed by device name"
+        },
         "vni_mappings": {
           "type": "array",
           "items": {

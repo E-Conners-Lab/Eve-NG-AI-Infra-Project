@@ -123,9 +123,9 @@ class TestComputeLeafConfig:
         """VTEP source must point to correct loopback."""
         config = _render_device(spec, "dc-leaf-1")
         assert "Loopback1" in config
-        # VTEP source IP from fabric config
+        # VTEP source IP from per-device vtep_sources map
         vxlan = spec["sites"]["dc_east"]["fabric"]["vxlan"]
-        vtep_ip = vxlan["vtep_source"].split("/")[0]
+        vtep_ip = vxlan["vtep_sources"]["dc-leaf-1"].split("/")[0]
         assert vtep_ip in config
 
     def test_ebgp_neighbors_to_spines(self, spec: dict) -> None:
