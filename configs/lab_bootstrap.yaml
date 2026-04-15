@@ -43,7 +43,7 @@ eve_ng_platforms:
     image: "c8000v-17.13.01a"
     ram: 8192
     cpu: 4
-    ethernet: 5
+    ethernet: 6  # Gi1-Gi4 data, Gi5 mgmt, Gi6 spare
   fortinet_fortios:
     template: "fortinet"
     image: "fortinet-FGT"

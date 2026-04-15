@@ -58,24 +58,27 @@ def _get_scrapli_connection(
     scrapli_platform = SCRAPLI_PLATFORM.get(platform)
 
     if scrapli_platform:
+        # Use paramiko transport — EVE-NG devices use keyboard-interactive auth
         return Scrapli(
             host=mgmt_ip,
             auth_username=username,
             auth_password=password,
             auth_strict_key=False,
             platform=scrapli_platform,
-            transport="system",
+            transport="paramiko",
+            timeout_ops=30,
         )
 
     if platform == "fortinet_fortios":
+        # FortiGate requires keyboard-interactive auth — paramiko handles this
         return Scrapli(
             host=mgmt_ip,
             auth_username=username,
             auth_password=password,
             auth_strict_key=False,
             platform="fortinet_fortios",
-            transport="system",
-            transport_options={},
+            transport="paramiko",
+            timeout_ops=30,
         )
 
     return None

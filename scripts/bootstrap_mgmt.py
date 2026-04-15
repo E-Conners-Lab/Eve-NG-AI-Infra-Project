@@ -16,7 +16,6 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import base64
 import sys
 from pathlib import Path
 
@@ -49,19 +48,31 @@ username admin privilege 15 role network-admin secret {password}
 end
 """,
     "cisco_iosxe": """!
+! Bypass initial config dialog and password change prompt
+service password-encryption
+no service config
+no platform punt-keepalive disable-kernel-core
+!
 hostname {hostname}
+!
+security passwords min-length 1
+!
+username {username} privilege 15 secret 0 {password}
 !
 interface GigabitEthernet5
  ip address {mgmt_ip} 255.255.252.0
  no shutdown
 !
 ip route 0.0.0.0 0.0.0.0 {gateway}
+ip ssh version 2
+ip scp server enable
 !
+line con 0
+ login local
+ stopbits 1
 line vty 0 4
  login local
  transport input ssh
-!
-username {username} privilege 15 secret {password}
 !
 end
 """,
@@ -181,24 +192,21 @@ def bootstrap_management(
             injected += 1
             continue
 
-        # Encode config as base64 for EVE-NG API
-        config_b64 = base64.b64encode(config.encode()).decode()
-
         try:
-            # Find the node by name and update its startup config
+            # Find the node by name
             node = eve.get_node_by_name(lab_path, name)
             if not node:
                 print(" — ERROR (node not found in EVE-NG)")
                 continue
 
-            node_id = node["id"]
-            # Use the raw API to set startup-config
-            import json
+            node_id = str(node["id"])
 
-            sdk.put(
-                f"/labs{eve.normalize_path(lab_path)}/nodes/{node_id}",
-                data=json.dumps({"config": config_b64}),
-            )
+            # Step 1: Upload startup config to EVE-NG's config store
+            eve.upload_node_config(lab_path, node_id, config)
+
+            # Step 2: Enable the config so EVE-NG applies it on next boot
+            eve.enable_node_config(lab_path, node_id)
+
             print(" — OK")
             injected += 1
         except Exception as e:
