@@ -1,4 +1,4 @@
-"""Push generated configs to EVE-NG devices via SSH (Scrapli).
+"""Push generated configs to EVE-NG devices via SSH (Netmiko).
 
 Reads rendered configs from configs/generated/ and pushes them to each
 device over SSH. Every action is logged to a GAIT audit trail file.
@@ -21,8 +21,6 @@ from pathlib import Path
 import yaml
 from netmiko import ConnectHandler
 from netmiko.exceptions import NetmikoAuthenticationException, NetmikoTimeoutException
-from scrapli import Scrapli
-from scrapli.exceptions import ScrapliException
 
 from scripts.bootstrap_config import get_mgmt_ips
 from scripts.credentials import require_credentials
@@ -31,14 +29,12 @@ SPEC_PATH = Path(__file__).parent.parent / "specs" / "generated" / "lab_spec.yam
 CONFIGS_DIR = Path(__file__).parent.parent / "configs" / "generated"
 GAIT_LOG_DIR = Path(__file__).parent.parent / "logs"
 
-# Scrapli platform mapping
-SCRAPLI_PLATFORM: dict[str, str] = {
+# Netmiko device_type per platform
+NETMIKO_DEVICE_TYPE: dict[str, str] = {
     "arista_eos": "arista_eos",
-    "cisco_iosxe": "cisco_iosxe",
+    "cisco_iosxe": "cisco_xe",
+    "fortinet_fortios": "fortinet",
 }
-
-# FortiGate and Linux use scrapli_community or generic SSH
-COMMUNITY_PLATFORMS = {"fortinet_fortios", "linux"}
 
 
 def _gait_log(log_file: Path, entry: dict) -> None:
@@ -49,114 +45,29 @@ def _gait_log(log_file: Path, entry: dict) -> None:
         f.write(json.dumps(entry) + "\n")
 
 
-def _get_scrapli_connection(
-    device_name: str,
-    platform: str,
-    mgmt_ip: str,
-    username: str,
-    password: str,
-) -> Scrapli | None:
-    """Create a Scrapli connection object for a device."""
-    scrapli_platform = SCRAPLI_PLATFORM.get(platform)
+def _clean_config_lines(config_text: str, platform: str) -> list[str]:
+    """Filter config lines for the target platform.
 
-    if scrapli_platform:
-        # Use paramiko transport — EVE-NG devices use keyboard-interactive auth
-        return Scrapli(
-            host=mgmt_ip,
-            auth_username=username,
-            auth_password=password,
-            auth_strict_key=False,
-            platform=scrapli_platform,
-            transport="paramiko",
-            timeout_ops=30,
-        )
-
-    # FortiGate uses Netmiko (handled separately in _push_fortios_config)
-    return None
-
-
-def _push_fortios_config(
-    device_name: str,
-    config_text: str,
-    mgmt_ip: str,
-    username: str,
-    password: str,
-    log_file: Path,
-) -> bool:
-    """Push config to a FortiGate device using Netmiko.
-
-    Netmiko handles FortiOS keyboard-interactive auth and config mode natively.
+    Removes comments, blank lines, and platform-specific artifacts
+    that cause push errors.
     """
-    _gait_log(
-        log_file,
-        {
-            "action": "push_start",
-            "device": device_name,
-            "platform": "fortinet_fortios",
-            "config_lines": len(config_text.splitlines()),
-            "mgmt_ip": mgmt_ip,
-            "transport": "netmiko",
-        },
-    )
+    lines = config_text.splitlines()
 
-    try:
-        conn = ConnectHandler(
-            device_type="fortinet",
-            host=mgmt_ip,
-            username=username,
-            password=password,
-            timeout=15,
-        )
-        _gait_log(log_file, {"action": "ssh_connected", "device": device_name})
-
-        # Filter out comment lines and send config
-        clean_lines = [
+    if platform == "arista_eos":
+        return [
             line
-            for line in config_text.splitlines()
-            if line.strip() and not line.strip().startswith("###")
+            for line in lines
+            if line.strip() and not line.strip().startswith("!") and line.strip() != "end"
         ]
-        conn.send_config_set(clean_lines, cmd_verify=False)
-
-        # Verify
-        verify = conn.send_command("get system status | grep Hostname")
-        conn.disconnect()
-
-        _gait_log(
-            log_file,
-            {
-                "action": "push_success",
-                "device": device_name,
-                "config_lines": len(clean_lines),
-                "verify_snippet": verify.strip()[:100],
-            },
-        )
-        print(f"  {device_name}: OK ({len(clean_lines)} lines)")
-        return True
-
-    except (NetmikoAuthenticationException, NetmikoTimeoutException) as e:
-        error_msg = f"{type(e).__name__}: {e}"
-        print(f"  {device_name}: ERROR — {error_msg}")
-        _gait_log(
-            log_file,
-            {
-                "action": "push_error",
-                "device": device_name,
-                "error": error_msg,
-            },
-        )
-        return False
-    except Exception as e:
-        error_msg = f"{type(e).__name__}: {e}"
-        print(f"  {device_name}: ERROR — {error_msg}")
-        _gait_log(
-            log_file,
-            {
-                "action": "push_error",
-                "device": device_name,
-                "error": error_msg,
-            },
-        )
-        return False
+    if platform == "cisco_iosxe":
+        return [
+            line
+            for line in lines
+            if line.strip() and not line.strip().startswith("!") and line.strip() != "end"
+        ]
+    if platform == "fortinet_fortios":
+        return [line for line in lines if line.strip() and not line.strip().startswith("###")]
+    return [line for line in lines if line.strip()]
 
 
 def push_config_to_device(
@@ -169,7 +80,7 @@ def push_config_to_device(
     log_file: Path,
     dry_run: bool = False,
 ) -> bool:
-    """Push a config file to a single device.
+    """Push a config file to a single device via Netmiko.
 
     Returns True on success, False on failure.
     """
@@ -209,34 +120,32 @@ def push_config_to_device(
         _gait_log(log_file, {"action": "push_dry_run", "device": device_name})
         return True
 
-    # FortiGate uses Netmiko (handles keyboard-interactive auth + config mode)
-    if platform == "fortinet_fortios":
-        return _push_fortios_config(device_name, config_text, mgmt_ip, username, password, log_file)
-
-    conn = _get_scrapli_connection(device_name, platform, mgmt_ip, username, password)
-    if not conn:
-        print(f"  {device_name}: SKIP (no Scrapli driver for {platform})")
+    device_type = NETMIKO_DEVICE_TYPE.get(platform)
+    if not device_type:
+        print(f"  {device_name}: SKIP (no Netmiko driver for {platform})")
         _gait_log(
             log_file,
             {
                 "action": "skip",
                 "device": device_name,
-                "reason": f"no driver for {platform}",
+                "reason": f"no Netmiko driver for {platform}",
             },
         )
         return False
 
     try:
-        conn.open()
+        conn = ConnectHandler(
+            device_type=device_type,
+            host=mgmt_ip,
+            username=username,
+            password=password,
+            timeout=15,
+        )
         _gait_log(log_file, {"action": "ssh_connected", "device": device_name})
 
         # Pre-push: save running config for rollback
-        backup = ""
-        if platform == "arista_eos" or platform == "cisco_iosxe":
-            backup_result = conn.send_command("show running-config")
-            backup = backup_result.result
-
-        if backup:
+        if platform in ("arista_eos", "cisco_iosxe"):
+            backup = conn.send_command("show running-config")
             _gait_log(
                 log_file,
                 {
@@ -246,94 +155,41 @@ def push_config_to_device(
                 },
             )
 
-        # Push config based on platform
-        config_lines = config_text.splitlines()
+        # Clean config lines for platform
+        clean_lines = _clean_config_lines(config_text, platform)
 
-        if platform == "arista_eos":
-            # EOS: use configure session for atomic commit
-            conn.send_command("configure session push-config")
-            for line in config_lines:
-                stripped = line.strip()
-                if stripped and not stripped.startswith("!"):
-                    conn.send_command(stripped, strip_prompt=False)
-            commit_result = conn.send_command("commit")
-            if "error" in commit_result.result.lower():
-                conn.send_command("abort")
-                _gait_log(
-                    log_file,
-                    {
-                        "action": "push_failed",
-                        "device": device_name,
-                        "error": f"EOS session commit failed: {commit_result.result[:200]}",
-                    },
-                )
-                print(f"  {device_name}: FAILED (session commit error)")
-                return False
+        # Push config
+        conn.send_config_set(clean_lines, cmd_verify=False)
 
-        elif platform == "cisco_iosxe":
-            # IOS-XE: filter out comments, blank lines, and 'end' before sending
-            clean_lines = [
-                line
-                for line in config_lines
-                if line.strip() and not line.strip().startswith("!") and line.strip() != "end"
-            ]
-            result = conn.send_configs(clean_lines)
-            if result.failed:
-                _gait_log(
-                    log_file,
-                    {
-                        "action": "push_failed",
-                        "device": device_name,
-                        "error": str(result.result)[:200],
-                    },
-                )
-                print(f"  {device_name}: FAILED")
-                return False
-            # Save to startup
+        # Post-push: save to startup (Cisco) and verify
+        if platform == "cisco_iosxe":
             conn.send_command("write memory")
 
-        elif platform == "fortinet_fortios":
-            # FortiGate: config blocks (config system.../end) are self-contained
-            # send_configs is not appropriate — FortiOS uses its own config mode
-            result = conn.send_commands(config_lines)
-            if result.failed:
-                _gait_log(
-                    log_file,
-                    {
-                        "action": "push_failed",
-                        "device": device_name,
-                        "error": str(result.result)[:200],
-                    },
-                )
-                print(f"  {device_name}: FAILED")
-                return False
-
-        else:
-            result = conn.send_commands(config_lines)
-
-        # Post-push: verify config was applied
+        # Verify hostname
         if platform == "arista_eos":
             verify = conn.send_command("show hostname")
         elif platform == "cisco_iosxe":
             verify = conn.send_command("show running-config | include hostname")
         elif platform == "fortinet_fortios":
-            verify = conn.send_command("get system status")
+            verify = conn.send_command("get system status | grep Hostname")
         else:
-            verify = conn.send_command("hostname")
+            verify = ""
+
+        conn.disconnect()
 
         _gait_log(
             log_file,
             {
                 "action": "push_success",
                 "device": device_name,
-                "config_lines": len(config_lines),
-                "verify_snippet": verify.result[:100],
+                "config_lines": len(clean_lines),
+                "verify_snippet": verify.strip()[:100],
             },
         )
-        print(f"  {device_name}: OK ({len(config_lines)} lines)")
+        print(f"  {device_name}: OK ({len(clean_lines)} lines)")
         return True
 
-    except ScrapliException as e:
+    except (NetmikoAuthenticationException, NetmikoTimeoutException) as e:
         error_msg = f"{type(e).__name__}: {e}"
         print(f"  {device_name}: ERROR — {error_msg}")
         _gait_log(
@@ -345,11 +201,18 @@ def push_config_to_device(
             },
         )
         return False
-    finally:
-        import contextlib
-
-        with contextlib.suppress(ScrapliException, OSError):
-            conn.close()
+    except Exception as e:
+        error_msg = f"{type(e).__name__}: {e}"
+        print(f"  {device_name}: ERROR — {error_msg}")
+        _gait_log(
+            log_file,
+            {
+                "action": "push_error",
+                "device": device_name,
+                "error": error_msg,
+            },
+        )
+        return False
 
 
 def push_all_configs(

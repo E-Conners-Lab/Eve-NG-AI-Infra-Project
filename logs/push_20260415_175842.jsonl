@@ -1,0 +1,36 @@
+{"action": "push_session_start", "target": "all", "device_filter": "", "dry_run": true, "timestamp": "2026-04-15T17:58:42Z"}
+{"action": "push_start", "device": "dc-border-1", "platform": "arista_eos", "config_file": "dc-border-1.cfg", "config_lines": 69, "mgmt_ip": "192.168.68.114", "timestamp": "2026-04-15T17:58:42Z"}
+{"action": "push_dry_run", "device": "dc-border-1", "timestamp": "2026-04-15T17:58:42Z"}
+{"action": "push_start", "device": "dc-border-2", "platform": "arista_eos", "config_file": "dc-border-2.cfg", "config_lines": 69, "mgmt_ip": "192.168.68.115", "timestamp": "2026-04-15T17:58:42Z"}
+{"action": "push_dry_run", "device": "dc-border-2", "timestamp": "2026-04-15T17:58:42Z"}
+{"action": "push_start", "device": "dc-leaf-1", "platform": "arista_eos", "config_file": "dc-leaf-1.cfg", "config_lines": 89, "mgmt_ip": "192.168.68.112", "timestamp": "2026-04-15T17:58:42Z"}
+{"action": "push_dry_run", "device": "dc-leaf-1", "timestamp": "2026-04-15T17:58:42Z"}
+{"action": "push_start", "device": "dc-leaf-2", "platform": "arista_eos", "config_file": "dc-leaf-2.cfg", "config_lines": 89, "mgmt_ip": "192.168.68.113", "timestamp": "2026-04-15T17:58:42Z"}
+{"action": "push_dry_run", "device": "dc-leaf-2", "timestamp": "2026-04-15T17:58:42Z"}
+{"action": "push_start", "device": "dc-spine-1", "platform": "arista_eos", "config_file": "dc-spine-1.cfg", "config_lines": 93, "mgmt_ip": "192.168.68.110", "timestamp": "2026-04-15T17:58:42Z"}
+{"action": "push_dry_run", "device": "dc-spine-1", "timestamp": "2026-04-15T17:58:42Z"}
+{"action": "push_start", "device": "dc-spine-2", "platform": "arista_eos", "config_file": "dc-spine-2.cfg", "config_lines": 93, "mgmt_ip": "192.168.68.111", "timestamp": "2026-04-15T17:58:42Z"}
+{"action": "push_dry_run", "device": "dc-spine-2", "timestamp": "2026-04-15T17:58:42Z"}
+{"action": "push_start", "device": "br-ce-1", "platform": "cisco_iosxe", "config_file": "br-ce-1.cfg", "config_lines": 49, "mgmt_ip": "192.168.68.123", "timestamp": "2026-04-15T17:58:42Z"}
+{"action": "push_dry_run", "device": "br-ce-1", "timestamp": "2026-04-15T17:58:42Z"}
+{"action": "push_start", "device": "dr-leaf-1", "platform": "arista_eos", "config_file": "dr-leaf-1.cfg", "config_lines": 70, "mgmt_ip": "192.168.68.125", "timestamp": "2026-04-15T17:58:42Z"}
+{"action": "push_dry_run", "device": "dr-leaf-1", "timestamp": "2026-04-15T17:58:42Z"}
+{"action": "push_start", "device": "dr-leaf-2", "platform": "arista_eos", "config_file": "dr-leaf-2.cfg", "config_lines": 69, "mgmt_ip": "192.168.68.126", "timestamp": "2026-04-15T17:58:42Z"}
+{"action": "push_dry_run", "device": "dr-leaf-2", "timestamp": "2026-04-15T17:58:42Z"}
+{"action": "push_start", "device": "dc-ce-1", "platform": "cisco_iosxe", "config_file": "dc-ce-1.cfg", "config_lines": 64, "mgmt_ip": "192.168.68.120", "timestamp": "2026-04-15T17:58:42Z"}
+{"action": "push_dry_run", "device": "dc-ce-1", "timestamp": "2026-04-15T17:58:42Z"}
+{"action": "push_start", "device": "dr-ce-1", "platform": "cisco_iosxe", "config_file": "dr-ce-1.cfg", "config_lines": 64, "mgmt_ip": "192.168.68.129", "timestamp": "2026-04-15T17:58:42Z"}
+{"action": "push_dry_run", "device": "dr-ce-1", "timestamp": "2026-04-15T17:58:42Z"}
+{"action": "push_start", "device": "sp-pe-1", "platform": "cisco_iosxe", "config_file": "sp-pe-1.cfg", "config_lines": 59, "mgmt_ip": "192.168.68.121", "timestamp": "2026-04-15T17:58:42Z"}
+{"action": "push_dry_run", "device": "sp-pe-1", "timestamp": "2026-04-15T17:58:42Z"}
+{"action": "push_start", "device": "sp-pe-2", "platform": "cisco_iosxe", "config_file": "sp-pe-2.cfg", "config_lines": 59, "mgmt_ip": "192.168.68.122", "timestamp": "2026-04-15T17:58:42Z"}
+{"action": "push_dry_run", "device": "sp-pe-2", "timestamp": "2026-04-15T17:58:42Z"}
+{"action": "push_start", "device": "dc-fw-1", "platform": "fortinet_fortios", "config_file": "dc-fw-1.cfg", "config_lines": 85, "mgmt_ip": "192.168.68.118", "timestamp": "2026-04-15T17:58:42Z"}
+{"action": "push_dry_run", "device": "dc-fw-1", "timestamp": "2026-04-15T17:58:42Z"}
+{"action": "push_start", "device": "dc-fw-2", "platform": "fortinet_fortios", "config_file": "dc-fw-2.cfg", "config_lines": 85, "mgmt_ip": "192.168.68.119", "timestamp": "2026-04-15T17:58:42Z"}
+{"action": "push_dry_run", "device": "dc-fw-2", "timestamp": "2026-04-15T17:58:42Z"}
+{"action": "push_start", "device": "dr-fw-1", "platform": "fortinet_fortios", "config_file": "dr-fw-1.cfg", "config_lines": 71, "mgmt_ip": "192.168.68.127", "timestamp": "2026-04-15T17:58:42Z"}
+{"action": "push_dry_run", "device": "dr-fw-1", "timestamp": "2026-04-15T17:58:42Z"}
+{"action": "push_start", "device": "dr-fw-2", "platform": "fortinet_fortios", "config_file": "dr-fw-2.cfg", "config_lines": 71, "mgmt_ip": "192.168.68.128", "timestamp": "2026-04-15T17:58:42Z"}
+{"action": "push_dry_run", "device": "dr-fw-2", "timestamp": "2026-04-15T17:58:42Z"}
+{"action": "push_session_end", "success": 17, "fail": 0, "timestamp": "2026-04-15T17:58:42Z"}
