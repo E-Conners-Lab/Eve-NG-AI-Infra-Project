@@ -1,6 +1,6 @@
 .PHONY: test lint validate generate-spec generate-configs validate-configs \
        generate-testbed bootstrap-mgmt push-configs test-reachability deploy \
-       build-snapshot validate-batfish \
+       build-snapshot validate-batfish chaos-test deploy-safe \
        install dev-install clean
 
 # Default target
@@ -92,6 +92,13 @@ build-snapshot:
 # Batfish pre-deploy validation (requires Batfish Docker container running)
 validate-batfish: build-snapshot
 	python -m batfish.validate
+
+# Chaos testing — inject faults, verify agent detection, rollback (requires live devices)
+chaos-test:
+	python -m scripts.chaos_test
+
+# Full deploy with Batfish gate: generate → validate → push → verify
+deploy-safe: generate-spec generate-configs validate-batfish push-configs test-reachability agent
 
 # Remove generated artifacts
 clean:
