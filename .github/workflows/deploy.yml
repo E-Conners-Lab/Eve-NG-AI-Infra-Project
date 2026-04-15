@@ -15,16 +15,55 @@ on:
           - dr_west
 
 jobs:
+  ci:
+    name: CI Validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: uv pip install --system jsonschema pyyaml jinja2 pynetbox pytest ruff
+      - run: ruff check .
+      - run: ruff format --check .
+      - run: pytest tests/unit/ -v
+
   deploy:
-    name: Push configs to EVE-NG
+    name: Push Configs to EVE-NG
+    needs: ci
     runs-on: ubuntu-latest
     environment: eve-ng
     steps:
       - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-      - run: pip install -r requirements.txt
-      - name: Push configs
-        run: echo "Deploy step placeholder — target=${{ inputs.target }}"
-        # TODO: python scripts/push_configs.py --target ${{ inputs.target }}
+      - run: uv pip install --system -r requirements.txt scrapli scrapli-community
+      - name: Generate spec from NetBox
+        env:
+          NETBOX_URL: ${{ secrets.NETBOX_URL }}
+          NETBOX_TOKEN: ${{ secrets.NETBOX_TOKEN }}
+        run: python -m generator.netbox_to_spec
+      - name: Generate device configs
+        run: python generator/render_configs.py
+      - name: Push configs to devices
+        env:
+          DEVICE_USERNAME: ${{ secrets.DEVICE_USERNAME }}
+          DEVICE_PASSWORD: ${{ secrets.DEVICE_PASSWORD }}
+          DEVICE_ENABLE_PASSWORD: ${{ secrets.DEVICE_ENABLE_PASSWORD }}
+          FORTIGATE_USERNAME: ${{ secrets.FORTIGATE_USERNAME }}
+          FORTIGATE_PASSWORD: ${{ secrets.FORTIGATE_PASSWORD }}
+        run: python -m scripts.push_configs --target ${{ inputs.target }}
+      - name: Run reachability tests
+        env:
+          DEVICE_USERNAME: ${{ secrets.DEVICE_USERNAME }}
+          DEVICE_PASSWORD: ${{ secrets.DEVICE_PASSWORD }}
+        run: python -m scripts.run_reachability
+      - name: Upload GAIT logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gait-logs
+          path: logs/*.jsonl

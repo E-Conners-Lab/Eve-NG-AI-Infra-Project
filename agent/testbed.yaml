@@ -1,7 +1,212 @@
-# pyATS Testbed — Managed devices only
-# Populated when device connectivity is configured
-
 testbed:
-  name: "ai-infra-lab"
-
-devices: {}
+  name: ai-infra-lab
+  credentials:
+    default:
+      username: '%ENV{DEVICE_USERNAME}'
+      password: '%ENV{DEVICE_PASSWORD}'
+    enable:
+      password: '%ENV{DEVICE_ENABLE_PASSWORD}'
+devices:
+  dc-border-1:
+    os: eos
+    type: border-leaf
+    custom:
+      agent_role: managed
+      platform: arista_eos
+    connections:
+      cli:
+        protocol: ssh
+        ip: 192.168.68.114
+        port: 22
+  dc-border-2:
+    os: eos
+    type: border-leaf
+    custom:
+      agent_role: managed
+      platform: arista_eos
+    connections:
+      cli:
+        protocol: ssh
+        ip: 192.168.68.115
+        port: 22
+  dc-leaf-1:
+    os: eos
+    type: leaf
+    custom:
+      agent_role: managed
+      platform: arista_eos
+    connections:
+      cli:
+        protocol: ssh
+        ip: 192.168.68.112
+        port: 22
+  dc-leaf-2:
+    os: eos
+    type: leaf
+    custom:
+      agent_role: managed
+      platform: arista_eos
+    connections:
+      cli:
+        protocol: ssh
+        ip: 192.168.68.113
+        port: 22
+  dc-spine-1:
+    os: eos
+    type: spine
+    custom:
+      agent_role: managed
+      platform: arista_eos
+    connections:
+      cli:
+        protocol: ssh
+        ip: 192.168.68.110
+        port: 22
+  dc-spine-2:
+    os: eos
+    type: spine
+    custom:
+      agent_role: managed
+      platform: arista_eos
+    connections:
+      cli:
+        protocol: ssh
+        ip: 192.168.68.111
+        port: 22
+  br-ce-1:
+    os: iosxe
+    type: ce
+    custom:
+      agent_role: managed
+      platform: cisco_iosxe
+    connections:
+      cli:
+        protocol: ssh
+        ip: 192.168.68.123
+        port: 22
+  dr-leaf-1:
+    os: eos
+    type: leaf
+    custom:
+      agent_role: managed
+      platform: arista_eos
+    connections:
+      cli:
+        protocol: ssh
+        ip: 192.168.68.125
+        port: 22
+  dr-leaf-2:
+    os: eos
+    type: leaf
+    custom:
+      agent_role: managed
+      platform: arista_eos
+    connections:
+      cli:
+        protocol: ssh
+        ip: 192.168.68.126
+        port: 22
+  dc-ce-1:
+    os: iosxe
+    type: ce
+    custom:
+      agent_role: excluded
+      platform: cisco_iosxe
+    connections:
+      cli:
+        protocol: ssh
+        ip: 192.168.68.120
+        port: 22
+  dr-ce-1:
+    os: iosxe
+    type: ce
+    custom:
+      agent_role: excluded
+      platform: cisco_iosxe
+    connections:
+      cli:
+        protocol: ssh
+        ip: 192.168.68.129
+        port: 22
+  sp-pe-1:
+    os: iosxe
+    type: pe
+    custom:
+      agent_role: excluded
+      platform: cisco_iosxe
+    connections:
+      cli:
+        protocol: ssh
+        ip: 192.168.68.121
+        port: 22
+  sp-pe-2:
+    os: iosxe
+    type: pe
+    custom:
+      agent_role: excluded
+      platform: cisco_iosxe
+    connections:
+      cli:
+        protocol: ssh
+        ip: 192.168.68.122
+        port: 22
+  dc-fw-1:
+    os: fortinet_fortios
+    type: firewall
+    custom:
+      agent_role: excluded
+      platform: fortinet_fortios
+    connections:
+      cli:
+        protocol: ssh
+        ip: 192.168.68.118
+        port: 22
+    credentials:
+      default:
+        username: '%ENV{FORTIGATE_USERNAME}'
+        password: '%ENV{FORTIGATE_PASSWORD}'
+  dc-fw-2:
+    os: fortinet_fortios
+    type: firewall
+    custom:
+      agent_role: excluded
+      platform: fortinet_fortios
+    connections:
+      cli:
+        protocol: ssh
+        ip: 192.168.68.119
+        port: 22
+    credentials:
+      default:
+        username: '%ENV{FORTIGATE_USERNAME}'
+        password: '%ENV{FORTIGATE_PASSWORD}'
+  dr-fw-1:
+    os: fortinet_fortios
+    type: firewall
+    custom:
+      agent_role: excluded
+      platform: fortinet_fortios
+    connections:
+      cli:
+        protocol: ssh
+        ip: 192.168.68.127
+        port: 22
+    credentials:
+      default:
+        username: '%ENV{FORTIGATE_USERNAME}'
+        password: '%ENV{FORTIGATE_PASSWORD}'
+  dr-fw-2:
+    os: fortinet_fortios
+    type: firewall
+    custom:
+      agent_role: excluded
+      platform: fortinet_fortios
+    connections:
+      cli:
+        protocol: ssh
+        ip: 192.168.68.128
+        port: 22
+    credentials:
+      default:
+        username: '%ENV{FORTIGATE_USERNAME}'
+        password: '%ENV{FORTIGATE_PASSWORD}'

@@ -1,4 +1,6 @@
-.PHONY: test lint validate generate-spec generate-configs validate-configs install dev-install clean
+.PHONY: test lint validate generate-spec generate-configs validate-configs \
+       generate-testbed push-configs test-reachability deploy \
+       install dev-install clean
 
 # Default target
 all: lint validate test
@@ -11,9 +13,13 @@ install:
 dev-install:
 	uv pip install -e ".[dev]"
 
-# Run all tests
+# Run all unit tests (excludes integration tests requiring live devices)
 test:
-	pytest tests/ -v
+	pytest tests/ -v --ignore=tests/integration/
+
+# Run integration tests (requires live EVE-NG devices)
+test-integration:
+	pytest tests/integration/ -v
 
 # Run linting
 lint:
@@ -41,8 +47,23 @@ generate-configs:
 validate-configs:
 	pytest tests/unit/test_config_gen.py -v
 
+# Generate pyATS testbed from spec
+generate-testbed:
+	python -m scripts.generate_testbed
+
+# Push configs to EVE-NG devices via SSH (requires .env credentials)
+push-configs:
+	python -m scripts.push_configs
+
+# Run reachability test matrix (requires live devices with configs applied)
+test-reachability:
+	python -m scripts.run_reachability
+
+# Full deployment cycle: generate → push → verify
+deploy: generate-spec generate-configs generate-testbed push-configs test-reachability
+
 # Remove generated artifacts
 clean:
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 	find . -type d -name .pytest_cache -exec rm -rf {} + 2>/dev/null || true
-	rm -rf configs/generated/*.cfg
+	rm -rf configs/generated/*.cfg logs/*.jsonl
