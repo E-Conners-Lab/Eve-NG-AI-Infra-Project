@@ -156,8 +156,13 @@ def generate_spec(api: object) -> dict:
                         break
                 overlay["router_id"] = lo_ip
 
-            # EVPN overlay neighbors (from spines or peer leaves)
+            # EVPN overlay config (from spines or peer leaves)
             evpn = ctx.get("evpn_overlay", {})
+
+            # Overlay ASN for route-targets — from evpn_overlay.asn if no spine set it
+            if evpn.get("asn") and "asn" not in overlay:
+                overlay["asn"] = evpn["asn"]
+
             if evpn.get("neighbors") and "neighbors" not in overlay:
                 overlay["neighbors"] = []
             for n in evpn.get("neighbors", []):

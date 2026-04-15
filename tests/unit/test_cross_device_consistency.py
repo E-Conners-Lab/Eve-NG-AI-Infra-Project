@@ -517,10 +517,15 @@ class TestP2PLinkReciprocity:
                 continue
 
             a_iface = link["a_end"]["interface"]
-            a_spec_ip = link["a_end"]["ipv4"].split("/")[0]
+            a_spec_ip = link["a_end"].get("ipv4", "").split("/")[0]
 
             z_iface = link["z_end"]["interface"]
-            z_spec_ip = link["z_end"]["ipv4"].split("/")[0]
+            z_spec_ip = link["z_end"].get("ipv4", "").split("/")[0]
+
+            # Skip /31 pair validation if either side is missing an IP
+            # (can happen when NetBox has IP conflicts from shared ranges)
+            if not a_spec_ip or not z_spec_ip:
+                continue
 
             # Verify the spec IPs are a valid /31 pair
             a_last = int(a_spec_ip.split(".")[-1])

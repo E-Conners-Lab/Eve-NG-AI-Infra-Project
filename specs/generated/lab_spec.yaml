@@ -1,7 +1,7 @@
 metadata:
   version: 1.0.0
   generated_from: netbox
-  generated_at: '2026-04-15T05:36:03Z'
+  generated_at: '2026-04-15T05:41:16Z'
   schema_version: 1.0.0
 sites:
   dc_east:
@@ -406,6 +406,7 @@ sites:
       asn: 65202
     fabric:
       overlay:
+        asn: 65000
         neighbors:
         - address: 10.31.0.2
           remote_as: 65201
