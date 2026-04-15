@@ -389,6 +389,72 @@ class TestNoHardcodedValues:
 
 
 # ---------------------------------------------------------------------------
+# Test: No hardcoded ASNs — all ASNs in configs must come from the spec
+# ---------------------------------------------------------------------------
+class TestNoHardcodedASNs:
+    """Every ASN in a rendered config must exist in the spec."""
+
+    def _collect_all_asns_from_spec(self, spec: dict) -> set[int]:
+        """Collect every ASN mentioned in the spec."""
+        asns: set[int] = set()
+
+        def _extract(obj: object) -> None:
+            if isinstance(obj, dict):
+                for k, v in obj.items():
+                    if k in ("asn", "remote_as") and isinstance(v, int):
+                        asns.add(v)
+                    else:
+                        _extract(v)
+            elif isinstance(obj, list):
+                for item in obj:
+                    _extract(item)
+
+        _extract(spec)
+        return asns
+
+    def _collect_asns_from_config(self, config: str) -> set[int]:
+        """Extract ASN numbers from 'remote-as' and 'router bgp' lines."""
+        import re
+
+        asns: set[int] = set()
+        for match in re.findall(r"(?:remote-as|router bgp)\s+(\d+)", config):
+            asns.add(int(match))
+        return asns
+
+    def test_spine_no_hardcoded_asns(self, spec: dict) -> None:
+        """dc-spine-1 config ASNs must all exist in the spec."""
+        config = _render_device(spec, "dc-spine-1")
+        spec_asns = self._collect_all_asns_from_spec(spec)
+        config_asns = self._collect_asns_from_config(config)
+        unexpected = config_asns - spec_asns - {0}
+        assert not unexpected, f"Hardcoded ASNs in dc-spine-1 config: {unexpected}"
+
+    def test_ce_no_hardcoded_asns(self, spec: dict) -> None:
+        """dc-ce-1 config ASNs must all exist in the spec."""
+        config = _render_device(spec, "dc-ce-1")
+        spec_asns = self._collect_all_asns_from_spec(spec)
+        config_asns = self._collect_asns_from_config(config)
+        unexpected = config_asns - spec_asns - {0}
+        assert not unexpected, f"Hardcoded ASNs in dc-ce-1 config: {unexpected}"
+
+    def test_branch_no_hardcoded_asns(self, spec: dict) -> None:
+        """br-ce-1 config ASNs must all exist in the spec."""
+        config = _render_device(spec, "br-ce-1")
+        spec_asns = self._collect_all_asns_from_spec(spec)
+        config_asns = self._collect_asns_from_config(config)
+        unexpected = config_asns - spec_asns - {0}
+        assert not unexpected, f"Hardcoded ASNs in br-ce-1 config: {unexpected}"
+
+    def test_leaf_no_hardcoded_asns(self, spec: dict) -> None:
+        """dc-leaf-1 config ASNs must all exist in the spec."""
+        config = _render_device(spec, "dc-leaf-1")
+        spec_asns = self._collect_all_asns_from_spec(spec)
+        config_asns = self._collect_asns_from_config(config)
+        unexpected = config_asns - spec_asns - {0}
+        assert not unexpected, f"Hardcoded ASNs in dc-leaf-1 config: {unexpected}"
+
+
+# ---------------------------------------------------------------------------
 # Test: All 17 network devices produce non-empty configs
 # ---------------------------------------------------------------------------
 class TestAllDevicesRendered:

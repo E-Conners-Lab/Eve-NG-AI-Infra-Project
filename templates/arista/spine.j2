@@ -23,7 +23,7 @@ router bgp {{ asn }}
    !
    ! Underlay eBGP neighbors (leaf/border P2P links)
 {% for iface in interfaces %}
-   neighbor {{ peer_ip(iface) }} remote-as {{ asn + loop.index }}
+   neighbor {{ peer_ip(iface) }} remote-as {{ device_asn.get(iface.peer, 0) }}
    neighbor {{ peer_ip(iface) }} description {{ iface.peer | default('') }}
    neighbor {{ peer_ip(iface) }} send-community extended
 !

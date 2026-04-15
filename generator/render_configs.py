@@ -118,6 +118,27 @@ def _cidr_to_subnet(prefix_len: int) -> str:
     return ".".join(str((mask_int >> (8 * i)) & 0xFF) for i in range(3, -1, -1))
 
 
+def _build_device_asn_map(spec: dict) -> dict[str, int]:
+    """Build a name->ASN lookup across all devices in the spec.
+
+    This lets templates resolve any peer's ASN from the spec rather than
+    hardcoding or deriving from loop position.
+    """
+    asn_map: dict[str, int] = {}
+    for _site_key, site in spec.get("sites", {}).items():
+        for dev in site.get("devices", []):
+            if "asn" in dev:
+                asn_map[dev["name"]] = dev["asn"]
+    for dev in spec.get("wan_transport", {}).get("devices", []):
+        if "asn" in dev:
+            asn_map[dev["name"]] = dev["asn"]
+    for _zone_key, zone in spec.get("security", {}).items():
+        for dev in zone.get("firewalls", []):
+            if "asn" in dev:
+                asn_map[dev["name"]] = dev["asn"]
+    return asn_map
+
+
 def _select_template(device: dict, site_key: str, section: str) -> str:
     """Select the Jinja2 template path for a device."""
     platform = device["platform"]
@@ -156,6 +177,11 @@ def _build_context(spec: dict, device: dict, site_key: str, section: str) -> dic
     ctx["cidr_to_wildcard"] = _cidr_to_wildcard
     ctx["cidr_to_subnet"] = _cidr_to_subnet
 
+    # Build a global device-name-to-ASN lookup so templates can resolve peer ASNs
+    # from the spec instead of hardcoding or deriving from loop position.
+    device_asn_map = _build_device_asn_map(spec)
+    ctx["device_asn"] = device_asn_map
+
     # Fabric config for DC/DR sites
     if site_key in ("dc_east", "dr_west") and section == "site":
         site_data = spec["sites"][site_key]
@@ -189,13 +215,14 @@ def _build_context(spec: dict, device: dict, site_key: str, section: str) -> dic
         pe_neighbors = []
         for iface in device.get("interfaces", []):
             if iface.get("peer", "").startswith("sp-pe"):
+                peer_name = iface.get("peer", "")
                 pe_neighbors.append(
                     {
                         "interface": iface["name"],
                         "local_ip": _ip_no_mask(iface.get("ipv4", "")),
                         "peer_ip": _get_peer_ip(iface),
-                        "peer_name": iface.get("peer", ""),
-                        "remote_as": 64500,
+                        "peer_name": peer_name,
+                        "remote_as": device_asn_map.get(peer_name, 0),
                     }
                 )
         ctx["pe_neighbors"] = pe_neighbors

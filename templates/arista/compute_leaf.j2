@@ -58,13 +58,9 @@ router bgp {{ asn }}
    !
    ! Underlay eBGP to spines
 {% for iface in interfaces if iface.get('peer', '').startswith('dc-spine') or iface.get('peer', '').startswith('dr-leaf') %}
-{% set spine_dev = None %}
-{% for s in spines if s.name == iface.peer %}
-{% set spine_dev = s %}
-   neighbor {{ peer_ip(iface) }} remote-as {{ s.asn }}
+   neighbor {{ peer_ip(iface) }} remote-as {{ device_asn.get(iface.peer, 0) }}
    neighbor {{ peer_ip(iface) }} description {{ iface.peer }}
    neighbor {{ peer_ip(iface) }} send-community extended
-{% endfor %}
 {% endfor %}
    !
    address-family ipv4

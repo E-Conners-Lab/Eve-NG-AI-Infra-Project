@@ -432,6 +432,9 @@ ALL_INTERFACES = [
 # --- IP addresses ---
 ALL_IPS = [
     _make_ip(1, "10.1.0.1/32", 1, "Loopback0", "dc-spine-1", 1),
+    # P2P IPs on spine-1 physical interfaces for contract gap tests
+    _make_ip(100, "10.1.1.0/31", 2, "Ethernet1", "dc-spine-1", 1),
+    _make_ip(101, "10.1.1.2/31", 3, "Ethernet2", "dc-spine-1", 1),
     _make_ip(2, "10.1.0.2/32", 4, "Loopback0", "dc-spine-2", 2),
     _make_ip(3, "10.1.0.11/32", 6, "Loopback0", "dc-leaf-1", 3),
     _make_ip(4, "10.1.2.11/32", 7, "Loopback1", "dc-leaf-1", 3),
@@ -802,3 +805,31 @@ class TestReachabilityMatrix:
         has_branch = any(h.startswith("br-") for h in all_endpoints)
         has_dr = any(h.startswith("dr-") for h in all_endpoints)
         assert sum([has_dc, has_branch, has_dr]) >= 2, "Matrix must span multiple sites"
+
+
+class TestGeneratorRendererContract:
+    """Generator must produce interface data that the renderer can consume."""
+
+    def test_spine_has_interfaces_with_peers(self, mock_api: MagicMock) -> None:
+        """dc-spine-1 must have interfaces with peer info from cables."""
+        from generator.netbox_to_spec import generate_spec
+
+        spec = generate_spec(mock_api)
+        dc_devices = spec["sites"]["dc_east"]["devices"]
+        spine1 = next(d for d in dc_devices if d["name"] == "dc-spine-1")
+        interfaces = spine1.get("interfaces", [])
+        assert len(interfaces) > 0, "Spine must have interfaces populated"
+        # At least one interface should have a peer from cables
+        peers = [i.get("peer") for i in interfaces if "peer" in i]
+        assert len(peers) > 0, "Spine interfaces must have peer info from cables"
+
+    def test_interfaces_have_ips(self, mock_api: MagicMock) -> None:
+        """Devices with IP-bearing interfaces must have ipv4 in the spec."""
+        from generator.netbox_to_spec import generate_spec
+
+        spec = generate_spec(mock_api)
+        dc_devices = spec["sites"]["dc_east"]["devices"]
+        spine1 = next(d for d in dc_devices if d["name"] == "dc-spine-1")
+        interfaces = spine1.get("interfaces", [])
+        ips = [i.get("ipv4") for i in interfaces if "ipv4" in i]
+        assert len(ips) > 0, "Spine interfaces must have IPs from NetBox"

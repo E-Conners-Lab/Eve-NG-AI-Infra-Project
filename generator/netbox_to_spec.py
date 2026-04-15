@@ -84,6 +84,18 @@ def generate_spec(api: object) -> dict:
     for iface in all_interfaces:
         ifaces_by_device.setdefault(iface.device.id, []).append(iface)
 
+    # Index cables: (device_name, interface_name) -> (peer_device, peer_interface)
+    cable_peers: dict[tuple[str, str], tuple[str, str]] = {}
+    for cable in all_cables:
+        a_terms = cable.a_terminations
+        b_terms = cable.b_terminations
+        if not a_terms or not b_terms:
+            continue
+        a_key = (a_terms[0].device.name, a_terms[0].name)
+        z_key = (b_terms[0].device.name, b_terms[0].name)
+        cable_peers[a_key] = (b_terms[0].device.name, b_terms[0].name)
+        cable_peers[z_key] = (a_terms[0].device.name, a_terms[0].name)
+
     # ------------------------------------------------------------------
     # 2. Classify devices by site and role
     # ------------------------------------------------------------------
@@ -124,14 +136,38 @@ def generate_spec(api: object) -> dict:
             "platform": dev.platform.slug,
         }
 
-        # Find loopback0 IP.
+        # Build interfaces list with IPs and peer info from cables.
         device_ifaces = ifaces_by_device.get(dev.id, [])
+        spec_interfaces: list[dict] = []
+
         for iface in device_ifaces:
-            if iface.name == "Loopback0":
-                iface_ips = ip_by_interface.get(iface.id, [])
-                if iface_ips:
-                    entry["loopback0"] = iface_ips[0].address
-                break
+            iface_ips = ip_by_interface.get(iface.id, [])
+
+            # Set loopback0 at the device level (not in interfaces list).
+            if iface.name == "Loopback0" and iface_ips:
+                entry["loopback0"] = iface_ips[0].address
+                continue
+
+            # Build interface entry.
+            iface_entry: dict = {"name": iface.name}
+            if iface_ips:
+                iface_entry["ipv4"] = iface_ips[0].address
+            if iface.description:
+                iface_entry["description"] = iface.description
+
+            # Resolve peer from cable index.
+            cable_key = (dev.name, iface.name)
+            if cable_key in cable_peers:
+                peer_dev, peer_iface = cable_peers[cable_key]
+                iface_entry["peer"] = peer_dev
+                iface_entry["peer_interface"] = peer_iface
+
+            # Only include interfaces that have an IP or a cable (skip empty mgmt, etc.)
+            if "ipv4" in iface_entry or "peer" in iface_entry:
+                spec_interfaces.append(iface_entry)
+
+        if spec_interfaces:
+            entry["interfaces"] = spec_interfaces
 
         # ASN from config context or custom fields.
         asn = None
