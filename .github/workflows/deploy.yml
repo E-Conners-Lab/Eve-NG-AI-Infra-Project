@@ -23,7 +23,7 @@ jobs:
       - uses: astral-sh/setup-uv@v5
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
+          python-version: "3.11"
       - run: uv pip install --system jsonschema pyyaml jinja2 pynetbox pytest ruff
       - run: ruff check .
       - run: ruff format --check .
@@ -39,7 +39,7 @@ jobs:
       - uses: astral-sh/setup-uv@v5
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
+          python-version: "3.11"
       - run: uv pip install --system -r requirements.txt scrapli scrapli-community
       - name: Generate spec from NetBox
         env:

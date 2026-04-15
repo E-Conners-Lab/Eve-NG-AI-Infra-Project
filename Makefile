@@ -1,5 +1,5 @@
 .PHONY: test lint validate generate-spec generate-configs validate-configs \
-       generate-testbed push-configs test-reachability deploy \
+       generate-testbed bootstrap-mgmt push-configs test-reachability deploy \
        install dev-install clean
 
 # Default target
@@ -51,7 +51,11 @@ validate-configs:
 generate-testbed:
 	python -m scripts.generate_testbed
 
-# Push configs to EVE-NG devices via SSH (requires .env credentials)
+# Bootstrap management IPs via EVE-NG API (first-time setup, no SSH needed)
+bootstrap-mgmt:
+	python -m scripts.bootstrap_mgmt
+
+# Push configs to EVE-NG devices via SSH (requires .env credentials + mgmt IPs)
 push-configs:
 	python -m scripts.push_configs
 

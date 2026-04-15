@@ -46,7 +46,8 @@ def _ssh_ping(
         result = conn.send_command(f"ping -c {count} -W 2 {dest_ip}")
         conn.close()
         return f"{count} packets received" in result.result or "0% packet loss" in result.result
-    except ScrapliException:
+    except ScrapliException as e:
+        print(f" (SSH error: {type(e).__name__}: {e})", end="")
         return False
 
 

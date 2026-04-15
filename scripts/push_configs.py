@@ -148,59 +148,120 @@ def push_config_to_device(
         conn.open()
         _gait_log(log_file, {"action": "ssh_connected", "device": device_name})
 
-        # Send config based on platform
+        # Pre-push: save running config for rollback
+        backup = ""
         if platform == "arista_eos" or platform == "cisco_iosxe":
-            result = conn.send_configs(config_text.splitlines())
-        elif platform == "fortinet_fortios":
-            # FortiGate uses a different config mode
-            result = conn.send_commands(config_text.splitlines())
-        else:
-            result = conn.send_commands(config_text.splitlines())
+            backup_result = conn.send_command("show running-config")
+            backup = backup_result.result
 
-        failed = getattr(result, "failed", False)
-        if failed:
-            print(f"  {device_name}: FAILED")
+        if backup:
             _gait_log(
                 log_file,
                 {
-                    "action": "push_failed",
+                    "action": "backup_saved",
                     "device": device_name,
-                    "error": str(getattr(result, "result", "")),
+                    "backup_lines": len(backup.splitlines()),
                 },
             )
-            return False
 
-        # Verify by reading back hostname
-        verify = conn.send_command("show hostname" if platform == "arista_eos" else "show version")
+        # Push config based on platform
+        config_lines = config_text.splitlines()
+
+        if platform == "arista_eos":
+            # EOS: use configure session for atomic commit
+            conn.send_command("configure session push-config")
+            for line in config_lines:
+                stripped = line.strip()
+                if stripped and not stripped.startswith("!"):
+                    conn.send_command(stripped, strip_prompt=False)
+            commit_result = conn.send_command("commit")
+            if "error" in commit_result.result.lower():
+                conn.send_command("abort")
+                _gait_log(
+                    log_file,
+                    {
+                        "action": "push_failed",
+                        "device": device_name,
+                        "error": f"EOS session commit failed: {commit_result.result[:200]}",
+                    },
+                )
+                print(f"  {device_name}: FAILED (session commit error)")
+                return False
+
+        elif platform == "cisco_iosxe":
+            # IOS-XE: send_configs enters config mode automatically
+            result = conn.send_configs(config_lines)
+            if result.failed:
+                _gait_log(
+                    log_file,
+                    {
+                        "action": "push_failed",
+                        "device": device_name,
+                        "error": str(result.result)[:200],
+                    },
+                )
+                print(f"  {device_name}: FAILED")
+                return False
+            # Save to startup
+            conn.send_command("write memory")
+
+        elif platform == "fortinet_fortios":
+            # FortiGate: config blocks (config system.../end) are self-contained
+            # send_configs is not appropriate — FortiOS uses its own config mode
+            result = conn.send_commands(config_lines)
+            if result.failed:
+                _gait_log(
+                    log_file,
+                    {
+                        "action": "push_failed",
+                        "device": device_name,
+                        "error": str(result.result)[:200],
+                    },
+                )
+                print(f"  {device_name}: FAILED")
+                return False
+
+        else:
+            result = conn.send_commands(config_lines)
+
+        # Post-push: verify config was applied
+        if platform == "arista_eos":
+            verify = conn.send_command("show hostname")
+        elif platform == "cisco_iosxe":
+            verify = conn.send_command("show running-config | include hostname")
+        elif platform == "fortinet_fortios":
+            verify = conn.send_command("get system status")
+        else:
+            verify = conn.send_command("hostname")
+
         _gait_log(
             log_file,
             {
                 "action": "push_success",
                 "device": device_name,
-                "config_lines": len(config_text.splitlines()),
-                "verify_output_length": len(verify.result),
+                "config_lines": len(config_lines),
+                "verify_snippet": verify.result[:100],
             },
         )
-
-        conn.close()
-        print(f"  {device_name}: OK ({len(config_text.splitlines())} lines)")
+        print(f"  {device_name}: OK ({len(config_lines)} lines)")
         return True
 
     except ScrapliException as e:
-        print(f"  {device_name}: ERROR — {e}")
+        error_msg = f"{type(e).__name__}: {e}"
+        print(f"  {device_name}: ERROR — {error_msg}")
         _gait_log(
             log_file,
             {
                 "action": "push_error",
                 "device": device_name,
-                "error": str(e),
+                "error": error_msg,
             },
         )
         return False
     finally:
         import contextlib
 
-        with contextlib.suppress(Exception):
+        with contextlib.suppress(ScrapliException, OSError):
             conn.close()
 
 

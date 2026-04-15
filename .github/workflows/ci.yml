@@ -15,7 +15,7 @@ jobs:
       - uses: astral-sh/setup-uv@v5
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
+          python-version: "3.11"
       - run: uv pip install --system ruff
       - run: ruff check .
       - run: ruff format --check .
@@ -28,7 +28,7 @@ jobs:
       - uses: astral-sh/setup-uv@v5
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
+          python-version: "3.11"
       - run: uv pip install --system jsonschema pyyaml pytest
       - name: Run schema tests
         run: pytest tests/unit/test_schema.py -v
@@ -42,7 +42,7 @@ jobs:
       - uses: astral-sh/setup-uv@v5
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
+          python-version: "3.11"
       - run: uv pip install --system jsonschema pyyaml pynetbox pytest
       - name: Run generator tests (mocked NetBox)
         run: pytest tests/unit/test_generator.py -v
@@ -56,7 +56,7 @@ jobs:
       - uses: astral-sh/setup-uv@v5
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
+          python-version: "3.11"
       - run: uv pip install --system jsonschema pyyaml jinja2 pytest
       - name: Run config generation tests
         run: pytest tests/unit/test_config_gen.py -v
