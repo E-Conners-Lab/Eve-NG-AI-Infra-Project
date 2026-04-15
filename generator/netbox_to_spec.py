@@ -356,12 +356,12 @@ def generate_spec(api: object) -> dict:
         },
     }
 
-    # Agent thresholds + compliance from config context (anchor: dc-spine-1)
+    # Agent thresholds + compliance from config context (stored on all managed devices)
     for dev in all_devices:
         ctx = dev.config_context
-        if "agent_thresholds" in ctx:
+        if "agent_thresholds" in ctx and "thresholds" not in agent_spec:
             agent_spec["thresholds"] = ctx["agent_thresholds"]
-        if "compliance_rules" in ctx:
+        if "compliance_rules" in ctx and "compliance_rules" not in agent_spec:
             agent_spec["compliance_rules"] = ctx["compliance_rules"]
 
     # 11. Reachability matrix

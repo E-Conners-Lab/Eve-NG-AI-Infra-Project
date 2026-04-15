@@ -12,7 +12,6 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import contextlib
 import sys
 from pathlib import Path
 
@@ -159,6 +158,7 @@ def populate(nb, spec: dict, dry_run: bool = False) -> None:
     # 6. Devices + Interfaces + IPs
     # ------------------------------------------------------------------
     print("Step 6: Devices, Interfaces, and IPs")
+    skipped_ips: list[str] = []  # Track IPs that couldn't be created (duplicates)
 
     # Map platform slug to device type and site assignment
     platform_to_dtype = {
@@ -248,10 +248,10 @@ def populate(nb, spec: dict, dry_run: bool = False) -> None:
             else:
                 iface = existing_iface
 
-            # Assign IP if present (suppress duplicates from other projects)
+            # Assign IP if present
             if "ipv4" in iface_def:
                 ip_addr = iface_def["ipv4"]
-                with contextlib.suppress(Exception):
+                try:
                     nb.ipam.ip_addresses.create(
                         {
                             "address": ip_addr,
@@ -259,6 +259,12 @@ def populate(nb, spec: dict, dry_run: bool = False) -> None:
                             "assigned_object_id": iface.id,
                         }
                     )
+                except Exception as e:
+                    err = str(e)
+                    if "Duplicate" in err:
+                        skipped_ips.append(f"{dev_name}:{iface_name} = {ip_addr}")
+                    else:
+                        print(f"    IP ERROR {dev_name}:{iface_name} {ip_addr}: {err}")
 
         # Create Loopback0 if device has loopback0 field
         if "loopback0" in dev:
@@ -277,7 +283,7 @@ def populate(nb, spec: dict, dry_run: bool = False) -> None:
                 lo_iface = existing_lo
 
             lo_ip = dev["loopback0"]
-            with contextlib.suppress(Exception):
+            try:
                 nb.ipam.ip_addresses.create(
                     {
                         "address": lo_ip,
@@ -285,6 +291,12 @@ def populate(nb, spec: dict, dry_run: bool = False) -> None:
                         "assigned_object_id": lo_iface.id,
                     }
                 )
+            except Exception as e:
+                err = str(e)
+                if "Duplicate" in err:
+                    skipped_ips.append(f"{dev_name}:Loopback0 = {lo_ip}")
+                else:
+                    print(f"    IP ERROR {dev_name}:Loopback0 {lo_ip}: {err}")
 
         # Set config context for agent boundary
         if dev_name in managed_devices:
@@ -406,6 +418,12 @@ def populate(nb, spec: dict, dry_run: bool = False) -> None:
     print(f"  Devices: {len(created_devices)}")
     print(f"  Prefixes: {len(prefix_defs)}")
     print(f"  Cables: {cable_count}")
+    if skipped_ips:
+        print(f"\n  WARNING: {len(skipped_ips)} IPs skipped (duplicate in NetBox):")
+        for skip in skipped_ips:
+            print(f"    {skip}")
+        print("  These interfaces will have no IP in the generated spec.")
+        print("  Fix: adjust addressing or reassign conflicting IPs in NetBox.")
 
 
 def main() -> None:

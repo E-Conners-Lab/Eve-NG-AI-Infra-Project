@@ -17,100 +17,17 @@ from pathlib import Path
 
 import yaml
 
+from scripts.bootstrap_config import get_layout, get_mgmt_ips, get_mgmt_labels, get_platform_map
 from scripts.credentials import require_credentials
 
 SPEC_PATH = Path(__file__).parent.parent / "specs" / "generated" / "lab_spec.yaml"
 LAB_NAME = "AI-Infra-Lab"
 
-# EVE-NG template + image mapping per platform.
-PLATFORM_MAP: dict[str, dict] = {
-    "arista_eos": {
-        "template": "veos",
-        "image": "veos-4.33.1.1F",
-        "ram": 2048,
-        "cpu": 1,
-        "ethernet": 8,
-    },
-    "cisco_iosxe": {
-        "template": "c8000v",
-        "image": "c8000v-17.13.01a",
-        "ram": 8192,
-        "cpu": 4,  # C8000v requires 4 vCPUs minimum to boot
-        "ethernet": 5,  # 4 data (Gi1-Gi4) + 1 mgmt (Gi5)
-    },
-    "fortinet_fortios": {
-        "template": "fortinet",
-        "image": "fortinet-FGT",
-        "ram": 2048,
-        "cpu": 1,
-        "ethernet": 6,
-    },
-    "linux": {
-        "template": "linux",
-        "image": "linux-alpine",
-        "ram": 512,
-        "cpu": 1,
-        "ethernet": 2,
-    },
-}
-
-# Management interface name per platform (EVE-NG short label).
-MGMT_IFACE_LABEL: dict[str, str] = {
-    "arista_eos": "Mgmt1",
-    "cisco_iosxe": "Gi5",
-    "fortinet_fortios": "port6",
-    "linux": "e1",
-}
-
-# Management network IP assignments (192.168.68.110-130).
-MGMT_IPS: dict[str, str] = {
-    "dc-spine-1": "192.168.68.110",
-    "dc-spine-2": "192.168.68.111",
-    "dc-leaf-1": "192.168.68.112",
-    "dc-leaf-2": "192.168.68.113",
-    "dc-border-1": "192.168.68.114",
-    "dc-border-2": "192.168.68.115",
-    "dc-host-1": "192.168.68.116",
-    "dc-host-2": "192.168.68.117",
-    "dc-fw-1": "192.168.68.118",
-    "dc-fw-2": "192.168.68.119",
-    "dc-ce-1": "192.168.68.120",
-    "sp-pe-1": "192.168.68.121",
-    "sp-pe-2": "192.168.68.122",
-    "br-ce-1": "192.168.68.123",
-    "br-host-1": "192.168.68.124",
-    "dr-leaf-1": "192.168.68.125",
-    "dr-leaf-2": "192.168.68.126",
-    "dr-fw-1": "192.168.68.127",
-    "dr-fw-2": "192.168.68.128",
-    "dr-ce-1": "192.168.68.129",
-    "dr-host-1": "192.168.68.130",
-}
-
-# Visual layout positions (left, top) for the EVE-NG canvas.
-LAYOUT: dict[str, tuple[int, int]] = {
-    "dc-spine-1": (300, 50),
-    "dc-spine-2": (500, 50),
-    "dc-leaf-1": (200, 200),
-    "dc-leaf-2": (400, 200),
-    "dc-border-1": (600, 200),
-    "dc-border-2": (800, 200),
-    "dc-host-1": (200, 350),
-    "dc-host-2": (400, 350),
-    "dc-fw-1": (600, 350),
-    "dc-fw-2": (800, 350),
-    "dc-ce-1": (700, 500),
-    "sp-pe-1": (500, 650),
-    "sp-pe-2": (900, 650),
-    "br-ce-1": (300, 800),
-    "br-host-1": (300, 950),
-    "dr-leaf-1": (1100, 200),
-    "dr-leaf-2": (1300, 200),
-    "dr-fw-1": (1100, 350),
-    "dr-fw-2": (1300, 350),
-    "dr-ce-1": (1200, 500),
-    "dr-host-1": (1200, 800),
-}
+# All config loaded from configs/lab_bootstrap.yaml — no hardcoded values.
+PLATFORM_MAP = get_platform_map()
+MGMT_IFACE_LABEL = get_mgmt_labels()
+MGMT_IPS = get_mgmt_ips()
+LAYOUT = get_layout()
 
 
 def _collect_all_devices(spec: dict) -> list[dict]:

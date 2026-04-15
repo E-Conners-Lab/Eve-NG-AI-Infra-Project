@@ -42,6 +42,10 @@ class Credentials:
     fortigate_username: str = ""
     fortigate_password: str = ""
 
+    # Lab owner contact (for NetBox contact assignment — no PII in code)
+    lab_owner_name: str = ""
+    lab_owner_email: str = ""
+
 
 def _parse_dotenv(env_path: Path) -> dict[str, str]:
     """Parse a .env file into a dict without touching os.environ.
@@ -104,6 +108,8 @@ def load_credentials(env_file: Path | None = None) -> Credentials:
         device_enable_password=_resolve("DEVICE_ENABLE_PASSWORD", dotenv),
         fortigate_username=_resolve("FORTIGATE_USERNAME", dotenv),
         fortigate_password=_resolve("FORTIGATE_PASSWORD", dotenv),
+        lab_owner_name=_resolve("LAB_OWNER_NAME", dotenv),
+        lab_owner_email=_resolve("LAB_OWNER_EMAIL", dotenv),
     )
 
 

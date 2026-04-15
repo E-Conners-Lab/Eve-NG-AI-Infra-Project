@@ -31,7 +31,7 @@ def _get_or_create(endpoint, search: dict, create_data: dict, label: str = ""):
     return result
 
 
-def populate_enterprise(nb: pynetbox.api) -> None:
+def populate_enterprise(nb: pynetbox.api, creds: object | None = None) -> None:
     """Add enterprise organizational structure to NetBox."""
 
     # ==================================================================
@@ -481,14 +481,16 @@ def populate_enterprise(nb: pynetbox.api) -> None:
         "contact role",
     )
 
+    owner_name = getattr(creds, "lab_owner_name", "") or "Lab Owner"
+    owner_email = getattr(creds, "lab_owner_email", "") or ""
+    contact_data = {"name": owner_name, "title": "Network Engineer / Lab Owner"}
+    if owner_email:
+        contact_data["email"] = owner_email
+
     contact = _get_or_create(
         nb.tenancy.contacts,
-        {"name": "Elliot Conner"},
-        {
-            "name": "Elliot Conner",
-            "email": "elliot.conner3@gmail.com",
-            "title": "Network Engineer / Lab Owner",
-        },
+        {"name": owner_name},
+        contact_data,
         "contact",
     )
 
@@ -626,7 +628,7 @@ def main() -> None:
         print("DRY RUN — no changes will be made.\n")
         return
 
-    populate_enterprise(nb)
+    populate_enterprise(nb, creds=creds)
 
 
 if __name__ == "__main__":

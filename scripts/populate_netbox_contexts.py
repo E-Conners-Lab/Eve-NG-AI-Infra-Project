@@ -12,32 +12,12 @@ from __future__ import annotations
 
 import pynetbox
 
+from scripts.bootstrap_config import get_mgmt_ips, get_shared_overlay_asn
 from scripts.credentials import require_credentials
 
-# Management IPs for the topology (out-of-band).
-MGMT_IPS = {
-    "dc-spine-1": "192.168.68.110",
-    "dc-spine-2": "192.168.68.111",
-    "dc-leaf-1": "192.168.68.112",
-    "dc-leaf-2": "192.168.68.113",
-    "dc-border-1": "192.168.68.114",
-    "dc-border-2": "192.168.68.115",
-    "dc-host-1": "192.168.68.116",
-    "dc-host-2": "192.168.68.117",
-    "dc-fw-1": "192.168.68.118",
-    "dc-fw-2": "192.168.68.119",
-    "dc-ce-1": "192.168.68.120",
-    "sp-pe-1": "192.168.68.121",
-    "sp-pe-2": "192.168.68.122",
-    "br-ce-1": "192.168.68.123",
-    "br-host-1": "192.168.68.124",
-    "dr-leaf-1": "192.168.68.125",
-    "dr-leaf-2": "192.168.68.126",
-    "dr-fw-1": "192.168.68.127",
-    "dr-fw-2": "192.168.68.128",
-    "dr-ce-1": "192.168.68.129",
-    "dr-host-1": "192.168.68.130",
-}
+# Loaded from configs/lab_bootstrap.yaml — no hardcoded values.
+MGMT_IPS = get_mgmt_ips()
+SHARED_OVERLAY_ASN = get_shared_overlay_asn()
 
 
 def _update_context(nb: pynetbox.api, device_name: str, context: dict) -> None:

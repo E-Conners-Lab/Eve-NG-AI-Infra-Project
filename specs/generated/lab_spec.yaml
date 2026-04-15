@@ -1,7 +1,7 @@
 metadata:
   version: 1.0.0
   generated_from: netbox
-  generated_at: '2026-04-15T05:41:16Z'
+  generated_at: '2026-04-15T05:57:21Z'
   schema_version: 1.0.0
 sites:
   dc_east:
@@ -466,7 +466,7 @@ wan_transport:
   - name: dc-ce-1
     role: ce
     platform: cisco_iosxe
-    loopback0: 172.16.0.1/32
+    loopback0: 172.16.0.101/32
     interfaces:
     - name: GigabitEthernet1
       ipv4: 172.16.0.0/31
@@ -492,8 +492,10 @@ wan_transport:
   - name: dr-ce-1
     role: ce
     platform: cisco_iosxe
+    loopback0: 172.16.0.102/32
     interfaces:
     - name: GigabitEthernet1
+      ipv4: 172.16.0.11/31
       description: to sp-pe-1
       peer: sp-pe-1
       peer_interface: GigabitEthernet4
@@ -516,9 +518,10 @@ wan_transport:
   - name: sp-pe-1
     role: pe
     platform: cisco_iosxe
-    loopback0: 172.16.0.11/32
+    loopback0: 172.16.0.111/32
     interfaces:
     - name: GigabitEthernet1
+      ipv4: 172.16.0.1/31
       description: to dc-ce-1
       peer: dc-ce-1
       peer_interface: GigabitEthernet1
@@ -541,6 +544,7 @@ wan_transport:
   - name: sp-pe-2
     role: pe
     platform: cisco_iosxe
+    loopback0: 172.16.0.112/32
     interfaces:
     - name: GigabitEthernet1
       ipv4: 172.16.0.3/31
