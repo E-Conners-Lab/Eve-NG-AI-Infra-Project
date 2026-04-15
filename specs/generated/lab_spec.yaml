@@ -1,7 +1,7 @@
 metadata:
   version: 1.0.0
   generated_from: netbox
-  generated_at: '2026-04-15T05:57:21Z'
+  generated_at: '2026-04-15T18:11:07Z'
   schema_version: 1.0.0
 sites:
   dc_east:
@@ -48,6 +48,32 @@ sites:
         peer: dc-fw-2
         peer_interface: port1
       asn: 65004
+    - name: dc-ce-1
+      role: ce
+      platform: cisco_iosxe
+      loopback0: 172.16.0.101/32
+      interfaces:
+      - name: GigabitEthernet1
+        ipv4: 172.16.0.0/31
+        description: to sp-pe-1
+        peer: sp-pe-1
+        peer_interface: GigabitEthernet1
+      - name: GigabitEthernet2
+        ipv4: 10.99.1.1/31
+        description: to dc-fw-1
+        peer: dc-fw-1
+        peer_interface: port2
+      - name: GigabitEthernet3
+        ipv4: 10.99.1.3/31
+        description: to dc-fw-2
+        peer: dc-fw-2
+        peer_interface: port2
+      - name: GigabitEthernet4
+        ipv4: 172.16.0.2/31
+        description: to sp-pe-2
+        peer: sp-pe-2
+        peer_interface: GigabitEthernet1
+      asn: 65100
     - name: dc-host-1
       role: host
       platform: linux
@@ -158,6 +184,32 @@ sites:
         peer: dc-border-2
         peer_interface: Ethernet2
       asn: 65000
+    - name: dr-ce-1
+      role: ce
+      platform: cisco_iosxe
+      loopback0: 172.16.0.102/32
+      interfaces:
+      - name: GigabitEthernet1
+        ipv4: 172.16.0.11/31
+        description: to sp-pe-1
+        peer: sp-pe-1
+        peer_interface: GigabitEthernet4
+      - name: GigabitEthernet2
+        ipv4: 10.99.1.5/31
+        description: to dr-fw-1
+        peer: dr-fw-1
+        peer_interface: port2
+      - name: GigabitEthernet3
+        ipv4: 10.99.1.7/31
+        description: to dr-fw-2
+        peer: dr-fw-2
+        peer_interface: port2
+      - name: GigabitEthernet4
+        ipv4: 172.16.0.13/31
+        description: to sp-pe-2
+        peer: sp-pe-2
+        peer_interface: GigabitEthernet4
+      asn: 65100
     fabric:
       underlay:
         asn: 65000
@@ -250,6 +302,38 @@ sites:
         interface: port1
       type: p2p
     - a_end:
+        device: dc-ce-1
+        interface: GigabitEthernet1
+        ipv4: 172.16.0.0/31
+      z_end:
+        device: sp-pe-1
+        interface: GigabitEthernet1
+      type: p2p
+    - a_end:
+        device: dc-ce-1
+        interface: GigabitEthernet2
+        ipv4: 10.99.1.1/31
+      z_end:
+        device: dc-fw-1
+        interface: port2
+      type: p2p
+    - a_end:
+        device: dc-ce-1
+        interface: GigabitEthernet3
+        ipv4: 10.99.1.3/31
+      z_end:
+        device: dc-fw-2
+        interface: port2
+      type: p2p
+    - a_end:
+        device: dc-ce-1
+        interface: GigabitEthernet4
+        ipv4: 172.16.0.2/31
+      z_end:
+        device: sp-pe-2
+        interface: GigabitEthernet1
+      type: p2p
+    - a_end:
         device: dc-host-1
         interface: eth0
         ipv4: 10.10.1.10/24
@@ -296,6 +380,38 @@ sites:
       z_end:
         device: dc-spine-2
         interface: Ethernet2
+      type: p2p
+    - a_end:
+        device: dr-ce-1
+        interface: GigabitEthernet1
+        ipv4: 172.16.0.11/31
+      z_end:
+        device: sp-pe-1
+        interface: GigabitEthernet4
+      type: p2p
+    - a_end:
+        device: dr-ce-1
+        interface: GigabitEthernet2
+        ipv4: 10.99.1.5/31
+      z_end:
+        device: dr-fw-1
+        interface: port2
+      type: p2p
+    - a_end:
+        device: dr-ce-1
+        interface: GigabitEthernet3
+        ipv4: 10.99.1.7/31
+      z_end:
+        device: dr-fw-2
+        interface: port2
+      type: p2p
+    - a_end:
+        device: dr-ce-1
+        interface: GigabitEthernet4
+        ipv4: 172.16.0.13/31
+      z_end:
+        device: sp-pe-2
+        interface: GigabitEthernet4
       type: p2p
   branch_01:
     devices:
@@ -463,58 +579,6 @@ sites:
       type: p2p
 wan_transport:
   devices:
-  - name: dc-ce-1
-    role: ce
-    platform: cisco_iosxe
-    loopback0: 172.16.0.101/32
-    interfaces:
-    - name: GigabitEthernet1
-      ipv4: 172.16.0.0/31
-      description: to sp-pe-1
-      peer: sp-pe-1
-      peer_interface: GigabitEthernet1
-    - name: GigabitEthernet2
-      ipv4: 10.99.1.1/31
-      description: to dc-fw-1
-      peer: dc-fw-1
-      peer_interface: port2
-    - name: GigabitEthernet3
-      ipv4: 10.99.1.3/31
-      description: to dc-fw-2
-      peer: dc-fw-2
-      peer_interface: port2
-    - name: GigabitEthernet4
-      ipv4: 172.16.0.2/31
-      description: to sp-pe-2
-      peer: sp-pe-2
-      peer_interface: GigabitEthernet1
-    asn: 65100
-  - name: dr-ce-1
-    role: ce
-    platform: cisco_iosxe
-    loopback0: 172.16.0.102/32
-    interfaces:
-    - name: GigabitEthernet1
-      ipv4: 172.16.0.11/31
-      description: to sp-pe-1
-      peer: sp-pe-1
-      peer_interface: GigabitEthernet4
-    - name: GigabitEthernet2
-      ipv4: 10.99.1.5/31
-      description: to dr-fw-1
-      peer: dr-fw-1
-      peer_interface: port2
-    - name: GigabitEthernet3
-      ipv4: 10.99.1.7/31
-      description: to dr-fw-2
-      peer: dr-fw-2
-      peer_interface: port2
-    - name: GigabitEthernet4
-      ipv4: 172.16.0.13/31
-      description: to sp-pe-2
-      peer: sp-pe-2
-      peer_interface: GigabitEthernet4
-    asn: 65100
   - name: sp-pe-1
     role: pe
     platform: cisco_iosxe
@@ -568,34 +632,6 @@ wan_transport:
       peer_interface: GigabitEthernet4
     asn: 64500
   links:
-  - a_end:
-      device: dc-ce-1
-      interface: GigabitEthernet1
-    z_end:
-      device: sp-pe-1
-      interface: GigabitEthernet1
-    type: transport
-  - a_end:
-      device: dc-ce-1
-      interface: GigabitEthernet4
-    z_end:
-      device: sp-pe-2
-      interface: GigabitEthernet1
-    type: transport
-  - a_end:
-      device: dr-ce-1
-      interface: GigabitEthernet1
-    z_end:
-      device: sp-pe-1
-      interface: GigabitEthernet4
-    type: transport
-  - a_end:
-      device: dr-ce-1
-      interface: GigabitEthernet4
-    z_end:
-      device: sp-pe-2
-      interface: GigabitEthernet4
-    type: transport
   - a_end:
       device: sp-pe-1
       interface: GigabitEthernet2
@@ -712,10 +748,16 @@ agent:
     - br-ce-1
     - dc-border-1
     - dc-border-2
+    - dc-ce-1
+    - dc-fw-1
+    - dc-fw-2
     - dc-leaf-1
     - dc-leaf-2
     - dc-spine-1
     - dc-spine-2
+    - dr-ce-1
+    - dr-fw-1
+    - dr-fw-2
     - dr-leaf-1
     - dr-leaf-2
     observed:
@@ -724,12 +766,6 @@ agent:
     - dr-leaf-1:Ethernet2
     - dr-leaf-2:Ethernet2
     excluded:
-    - dc-ce-1
-    - dc-fw-1
-    - dc-fw-2
-    - dr-ce-1
-    - dr-fw-1
-    - dr-fw-2
     - sp-pe-1
     - sp-pe-2
   thresholds:

@@ -267,10 +267,26 @@ class TestAgentBoundary:
         overlap = set(managed) & excluded
         assert len(overlap) == 0, f"Excluded devices in managed list: {overlap}"
 
-    def test_firewalls_never_contacted(self, spec: dict) -> None:
-        """Firewalls are explicitly excluded — must never be in managed."""
+    def test_sp_routers_never_contacted(self, spec: dict) -> None:
+        """SP PE routers are the only excluded devices — never in managed."""
         from agent.skills.fabric_health.skill import get_managed_devices
 
         managed = get_managed_devices(spec)
+        sp_routers = {"sp-pe-1", "sp-pe-2"}
+        assert sp_routers.isdisjoint(set(managed)), "SP PEs must not be in managed"
+
+    def test_firewalls_are_managed(self, spec: dict) -> None:
+        """Firewalls are customer equipment — must be in managed."""
+        from agent.skills.fabric_health.skill import get_managed_devices
+
+        managed = set(get_managed_devices(spec))
         firewalls = {"dc-fw-1", "dc-fw-2", "dr-fw-1", "dr-fw-2"}
-        assert firewalls.isdisjoint(set(managed))
+        assert firewalls.issubset(managed), "Firewalls must be managed"
+
+    def test_ce_routers_are_managed(self, spec: dict) -> None:
+        """CE routers are customer equipment — must be in managed."""
+        from agent.skills.fabric_health.skill import get_managed_devices
+
+        managed = set(get_managed_devices(spec))
+        ce_routers = {"dc-ce-1", "dr-ce-1", "br-ce-1"}
+        assert ce_routers.issubset(managed), "CE routers must be managed"
