@@ -66,6 +66,24 @@ test-reachability:
 # Full deployment cycle: generate → push → verify
 deploy: generate-spec generate-configs generate-testbed push-configs test-reachability
 
+# Run the agent (all skills once)
+agent:
+	python -m agent.runner
+
+# Run a specific skill
+agent-fabric:
+	python -m agent.runner --skill fabric_health
+
+agent-branch:
+	python -m agent.runner --skill branch_connectivity
+
+agent-compliance:
+	python -m agent.runner --skill spec_compliance
+
+# Run agent on a schedule (every 5 minutes)
+agent-monitor:
+	python -m agent.runner --schedule 300
+
 # Remove generated artifacts
 clean:
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true

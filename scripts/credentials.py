@@ -46,6 +46,10 @@ class Credentials:
     lab_owner_name: str = ""
     lab_owner_email: str = ""
 
+    # Telegram bot (agent notifications)
+    telegram_bot_token: str = ""
+    telegram_chat_id: str = ""
+
 
 def _parse_dotenv(env_path: Path) -> dict[str, str]:
     """Parse a .env file into a dict without touching os.environ.
@@ -110,6 +114,8 @@ def load_credentials(env_file: Path | None = None) -> Credentials:
         fortigate_password=_resolve("FORTIGATE_PASSWORD", dotenv),
         lab_owner_name=_resolve("LAB_OWNER_NAME", dotenv),
         lab_owner_email=_resolve("LAB_OWNER_EMAIL", dotenv),
+        telegram_bot_token=_resolve("TELEGRAM_BOT_TOKEN", dotenv),
+        telegram_chat_id=_resolve("TELEGRAM_CHAT_ID", dotenv),
     )
 
 
