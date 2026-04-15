@@ -1,0 +1,30 @@
+name: Deploy to EVE-NG
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Deployment target (all, dc_east, branch_01, dr_west)"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - dc_east
+          - branch_01
+          - dr_west
+
+jobs:
+  deploy:
+    name: Push configs to EVE-NG
+    runs-on: ubuntu-latest
+    environment: eve-ng
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install -r requirements.txt
+      - name: Push configs
+        run: echo "Deploy step placeholder — target=${{ inputs.target }}"
+        # TODO: python scripts/push_configs.py --target ${{ inputs.target }}

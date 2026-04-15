@@ -1,0 +1,7 @@
+# pyATS Testbed — Managed devices only
+# Populated when device connectivity is configured
+
+testbed:
+  name: "ai-infra-lab"
+
+devices: {}

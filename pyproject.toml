@@ -1,0 +1,34 @@
+[project]
+name = "ai-infra-lab"
+version = "0.1.0"
+description = "Spec-driven AI infrastructure lab — EVE-NG + NetBox + NetClaw agent"
+requires-python = ">=3.13"
+dependencies = [
+    "jsonschema>=4.21.0",
+    "PyYAML>=6.0.1",
+    "Jinja2>=3.1.3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "ruff>=0.3.0",
+]
+generator = [
+    "pynetbox>=7.3.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "generator/tests"]
+pythonpath = ["."]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["generator*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP", "B", "SIM"]

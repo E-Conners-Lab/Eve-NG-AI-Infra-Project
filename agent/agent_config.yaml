@@ -1,0 +1,11 @@
+# Agent configuration — placeholder
+# Populated when agent skills are built
+
+agent:
+  name: "infra-lab-agent"
+  foundation: "netclaw"
+  interface: "slack"
+  skills:
+    - fabric_health
+    - branch_connectivity
+    - spec_compliance

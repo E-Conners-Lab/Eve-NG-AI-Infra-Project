@@ -1,0 +1,211 @@
+metadata:
+  version: "1.0.0"
+  generated_from: "netbox"
+  generated_at: "2026-04-14T00:00:00Z"
+  schema_version: "1.0.0"
+
+sites:
+  dc_east:
+    devices:
+      - name: dc-spine-1
+        role: spine
+        platform: arista_eos
+        loopback0: "10.1.0.1/32"
+        asn: 65000
+      - name: dc-spine-2
+        role: spine
+        platform: arista_eos
+        loopback0: "10.1.0.2/32"
+        asn: 65000
+      - name: dc-leaf-1
+        role: leaf
+        platform: arista_eos
+        loopback0: "10.1.0.11/32"
+        asn: 65001
+      - name: dc-leaf-2
+        role: leaf
+        platform: arista_eos
+        loopback0: "10.1.0.12/32"
+        asn: 65002
+      - name: dc-border-1
+        role: border-leaf
+        platform: arista_eos
+        loopback0: "10.1.0.13/32"
+        asn: 65003
+      - name: dc-border-2
+        role: border-leaf
+        platform: arista_eos
+        loopback0: "10.1.0.14/32"
+        asn: 65004
+      - name: dc-host-1
+        role: host
+        platform: linux
+      - name: dc-host-2
+        role: host
+        platform: linux
+
+  branch_01:
+    devices:
+      - name: br-ce-1
+        role: ce
+        platform: cisco_iosxe
+        loopback0: "10.20.0.1/32"
+        asn: 65100
+      - name: br-host-1
+        role: host
+        platform: linux
+
+  dr_west:
+    devices:
+      - name: dr-leaf-1
+        role: leaf
+        platform: arista_eos
+        loopback0: "10.31.0.1/32"
+        asn: 65201
+      - name: dr-leaf-2
+        role: leaf
+        platform: arista_eos
+        loopback0: "10.31.0.2/32"
+        asn: 65202
+      - name: dr-host-1
+        role: host
+        platform: linux
+
+wan_transport:
+  devices:
+    - name: dc-ce-1
+      role: ce
+      platform: cisco_iosxe
+      loopback0: "172.16.0.1/32"
+      asn: 65100
+    - name: sp-pe-1
+      role: pe
+      platform: cisco_iosxe
+      loopback0: "172.16.0.11/32"
+      asn: 64500
+    - name: sp-pe-2
+      role: pe
+      platform: cisco_iosxe
+      loopback0: "172.16.0.12/32"
+      asn: 64500
+    - name: dr-ce-1
+      role: ce
+      platform: cisco_iosxe
+      loopback0: "172.16.0.2/32"
+      asn: 65100
+  links:
+    - a_end:
+        device: sp-pe-1
+        interface: GigabitEthernet2
+        ipv4: "172.16.0.100/31"
+      z_end:
+        device: sp-pe-2
+        interface: GigabitEthernet2
+        ipv4: "172.16.0.101/31"
+      type: transport
+
+security:
+  dc:
+    firewalls:
+      - name: dc-fw-1
+        role: firewall
+        platform: fortinet_fortios
+      - name: dc-fw-2
+        role: firewall
+        platform: fortinet_fortios
+    zones:
+      - name: dc-trust
+        type: trust
+        interfaces:
+          - port1
+      - name: wan-untrust
+        type: untrust
+        interfaces:
+          - port2
+    policies:
+      - name: allow-dc-outbound
+        source_zone: dc-trust
+        destination_zone: wan-untrust
+        action: allow
+        services:
+          - tcp/443
+          - tcp/80
+          - icmp
+  dr:
+    firewalls:
+      - name: dr-fw-1
+        role: firewall
+        platform: fortinet_fortios
+      - name: dr-fw-2
+        role: firewall
+        platform: fortinet_fortios
+    zones:
+      - name: dr-trust
+        type: trust
+        interfaces:
+          - port1
+      - name: dr-untrust
+        type: untrust
+        interfaces:
+          - port2
+    policies:
+      - name: allow-dr-outbound
+        source_zone: dr-trust
+        destination_zone: dr-untrust
+        action: allow
+
+agent:
+  boundary:
+    managed:
+      - dc-spine-1
+      - dc-spine-2
+      - dc-leaf-1
+      - dc-leaf-2
+      - dc-border-1
+      - dc-border-2
+      - br-ce-1
+      - dr-leaf-1
+      - dr-leaf-2
+    observed:
+      - dc-border-1:external
+      - dc-border-2:external
+      - dr-leaf-1:external
+      - dr-leaf-2:external
+    excluded:
+      - dc-fw-1
+      - dc-fw-2
+      - dr-fw-1
+      - dr-fw-2
+      - dc-ce-1
+      - dr-ce-1
+      - sp-pe-1
+      - sp-pe-2
+  thresholds:
+    bgp_hold_time: 180
+    interface_flap_window_sec: 300
+    max_route_deviation_pct: 10.0
+  compliance_rules:
+    - name: bgp-session-established
+      check: "all managed BGP sessions must be in Established state"
+      severity: critical
+    - name: vtep-reachability
+      check: "all VTEP loopbacks must be reachable from all other VTEPs"
+      severity: critical
+    - name: vni-consistency
+      check: "VNI-to-VLAN mappings must match across all sites"
+      severity: warning
+
+tests:
+  reachability_matrix:
+    - source: dc-host-1
+      destination: dc-host-2
+      description: "East-west inter-VNI through fabric"
+    - source: dc-host-1
+      destination: br-host-1
+      description: "DC to branch full WAN path"
+    - source: dc-host-1
+      destination: dr-host-1
+      description: "DC to DR recovery path"
+    - source: br-host-1
+      destination: dr-host-1
+      description: "Branch to DR cross-site"

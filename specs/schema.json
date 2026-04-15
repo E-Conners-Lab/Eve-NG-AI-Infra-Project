@@ -1,0 +1,353 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-infra-lab/spec-schema/v1",
+  "title": "AI Infrastructure Lab Spec",
+  "description": "Declarative YAML spec for multi-site network lab — generated from NetBox, validated by CI",
+  "type": "object",
+  "required": ["metadata", "sites", "agent"],
+  "additionalProperties": false,
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "required": ["version", "generated_from", "generated_at", "schema_version"],
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "generated_from": {
+          "type": "string",
+          "enum": ["netbox", "manual"]
+        },
+        "generated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "schema_version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+$"
+        }
+      }
+    },
+    "sites": {
+      "type": "object",
+      "required": ["dc_east"],
+      "additionalProperties": false,
+      "properties": {
+        "dc_east": { "$ref": "#/$defs/site_dc" },
+        "branch_01": { "$ref": "#/$defs/site_branch" },
+        "dr_west": { "$ref": "#/$defs/site_dr" }
+      }
+    },
+    "wan_transport": {
+      "type": "object",
+      "properties": {
+        "devices": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/device" }
+        },
+        "links": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/link" }
+        }
+      }
+    },
+    "security": {
+      "type": "object",
+      "properties": {
+        "dc": { "$ref": "#/$defs/security_zone_config" },
+        "dr": { "$ref": "#/$defs/security_zone_config" }
+      }
+    },
+    "agent": {
+      "type": "object",
+      "required": ["boundary"],
+      "properties": {
+        "boundary": {
+          "type": "object",
+          "required": ["managed", "observed", "excluded"],
+          "additionalProperties": false,
+          "properties": {
+            "managed": {
+              "type": "array",
+              "items": { "type": "string" },
+              "minItems": 1
+            },
+            "observed": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "excluded": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        },
+        "thresholds": {
+          "type": "object",
+          "properties": {
+            "bgp_hold_time": { "type": "integer", "minimum": 0 },
+            "interface_flap_window_sec": { "type": "integer", "minimum": 0 },
+            "max_route_deviation_pct": { "type": "number", "minimum": 0, "maximum": 100 }
+          }
+        },
+        "compliance_rules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "check"],
+            "properties": {
+              "name": { "type": "string" },
+              "check": { "type": "string" },
+              "severity": {
+                "type": "string",
+                "enum": ["critical", "warning", "info"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "tests": {
+      "type": "object",
+      "properties": {
+        "reachability_matrix": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["source", "destination", "description"],
+            "additionalProperties": false,
+            "properties": {
+              "source": { "type": "string" },
+              "destination": { "type": "string" },
+              "description": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "ipv4_address": {
+      "type": "string",
+      "pattern": "^(?:(?:25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\.){3}(?:25[0-5]|2[0-4]\\d|[01]?\\d\\d?)(?:/\\d{1,2})?$"
+    },
+    "asn": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4294967295
+    },
+    "device": {
+      "type": "object",
+      "required": ["name", "role", "platform"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "role": {
+          "type": "string",
+          "enum": ["spine", "leaf", "border-leaf", "ce", "pe", "firewall", "host"]
+        },
+        "platform": {
+          "type": "string",
+          "enum": ["arista_eos", "cisco_iosxe", "fortinet_fortios", "linux"]
+        },
+        "loopback0": { "$ref": "#/$defs/ipv4_address" },
+        "asn": { "$ref": "#/$defs/asn" },
+        "interfaces": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/interface" }
+        }
+      }
+    },
+    "interface": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string" },
+        "ipv4": { "$ref": "#/$defs/ipv4_address" },
+        "description": { "type": "string" },
+        "peer": { "type": "string" },
+        "peer_interface": { "type": "string" },
+        "vlan": { "type": "integer", "minimum": 1, "maximum": 4094 },
+        "vni": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "link": {
+      "type": "object",
+      "required": ["a_end", "z_end"],
+      "properties": {
+        "a_end": {
+          "type": "object",
+          "required": ["device", "interface"],
+          "properties": {
+            "device": { "type": "string" },
+            "interface": { "type": "string" },
+            "ipv4": { "$ref": "#/$defs/ipv4_address" }
+          }
+        },
+        "z_end": {
+          "type": "object",
+          "required": ["device", "interface"],
+          "properties": {
+            "device": { "type": "string" },
+            "interface": { "type": "string" },
+            "ipv4": { "$ref": "#/$defs/ipv4_address" }
+          }
+        },
+        "type": {
+          "type": "string",
+          "enum": ["p2p", "transport", "access"]
+        }
+      }
+    },
+    "bgp_config": {
+      "type": "object",
+      "properties": {
+        "asn": { "$ref": "#/$defs/asn" },
+        "router_id": { "$ref": "#/$defs/ipv4_address" },
+        "neighbors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["address", "remote_as"],
+            "properties": {
+              "address": { "$ref": "#/$defs/ipv4_address" },
+              "remote_as": { "$ref": "#/$defs/asn" },
+              "description": { "type": "string" },
+              "address_families": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": ["ipv4_unicast", "evpn"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "vxlan_config": {
+      "type": "object",
+      "properties": {
+        "vtep_source": { "$ref": "#/$defs/ipv4_address" },
+        "vni_mappings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["vni", "vlan"],
+            "properties": {
+              "vni": { "type": "integer", "minimum": 1 },
+              "vlan": { "type": "integer", "minimum": 1, "maximum": 4094 },
+              "name": { "type": "string" },
+              "gateway": { "$ref": "#/$defs/ipv4_address" },
+              "subnet": { "$ref": "#/$defs/ipv4_address" }
+            }
+          }
+        }
+      }
+    },
+    "fabric_config": {
+      "type": "object",
+      "properties": {
+        "underlay": { "$ref": "#/$defs/bgp_config" },
+        "overlay": { "$ref": "#/$defs/bgp_config" },
+        "vxlan": { "$ref": "#/$defs/vxlan_config" }
+      }
+    },
+    "site_dc": {
+      "type": "object",
+      "required": ["devices"],
+      "properties": {
+        "devices": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/device" },
+          "minItems": 1
+        },
+        "fabric": { "$ref": "#/$defs/fabric_config" },
+        "links": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/link" }
+        }
+      }
+    },
+    "site_branch": {
+      "type": "object",
+      "required": ["devices"],
+      "properties": {
+        "devices": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/device" },
+          "minItems": 1
+        },
+        "routing": { "$ref": "#/$defs/bgp_config" },
+        "links": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/link" }
+        }
+      }
+    },
+    "site_dr": {
+      "type": "object",
+      "required": ["devices"],
+      "properties": {
+        "devices": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/device" },
+          "minItems": 1
+        },
+        "fabric": { "$ref": "#/$defs/fabric_config" },
+        "links": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/link" }
+        }
+      }
+    },
+    "security_zone_config": {
+      "type": "object",
+      "properties": {
+        "firewalls": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/device" }
+        },
+        "zones": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "type"],
+            "properties": {
+              "name": { "type": "string" },
+              "type": {
+                "type": "string",
+                "enum": ["trust", "untrust", "dmz"]
+              },
+              "interfaces": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            }
+          }
+        },
+        "policies": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "source_zone", "destination_zone", "action"],
+            "properties": {
+              "name": { "type": "string" },
+              "source_zone": { "type": "string" },
+              "destination_zone": { "type": "string" },
+              "action": {
+                "type": "string",
+                "enum": ["allow", "deny", "inspect"]
+              },
+              "services": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

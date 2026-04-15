@@ -1,0 +1,63 @@
+name: CI — Schema + Config Gen + Lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: uv pip install --system ruff
+      - run: ruff check .
+      - run: ruff format --check .
+
+  schema-validation:
+    name: Schema Validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: uv pip install --system jsonschema pyyaml pytest
+      - name: Run schema tests
+        run: pytest tests/unit/test_schema.py -v
+
+  generator:
+    name: Generator Tests
+    needs: schema-validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: uv pip install --system jsonschema pyyaml pynetbox pytest
+      - name: Run generator tests (mocked NetBox)
+        run: pytest tests/unit/test_generator.py -v
+
+  config-gen:
+    name: Config Generation Tests
+    needs: schema-validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: uv pip install --system jsonschema pyyaml jinja2 pytest
+      - name: Run config generation tests
+        run: pytest tests/unit/test_config_gen.py -v
+        continue-on-error: true  # Tests will be added incrementally
