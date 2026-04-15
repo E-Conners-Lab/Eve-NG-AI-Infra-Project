@@ -289,6 +289,14 @@ def run_spec_compliance(spec: dict, creds: object, log_file: Path) -> dict:
             elif platform == "fortinet_fortios":
                 output = conn.send_command_timing("get system interface physical")
                 live_interfaces = parse_fortios_interfaces(output)
+
+                # HA standby check: skip data-plane interfaces on standby units
+                from agent.skills.spec_compliance.skill import is_fortios_ha_standby
+
+                ha_output = conn.send_command_timing("get system ha status")
+                if is_fortios_ha_standby(ha_output):
+                    # Keep only management interface (port6) for compliance check
+                    live_interfaces = {k: v for k, v in live_interfaces.items() if k == "port6"}
             else:
                 live_interfaces = {}
 
@@ -329,6 +337,13 @@ def run_spec_compliance(spec: dict, creds: object, log_file: Path) -> dict:
                 results["failed"] += 1
                 results["all_drifts"].extend(drifts)
                 send_drift_alert(name, drifts)
+                # Write drift to NetBox journal (if enabled, never crashes agent)
+                try:
+                    from agent.netbox_reconciler import reconcile_drifts
+
+                    reconcile_drifts(name, drifts)
+                except Exception:
+                    pass  # NetBox failure must never block the agent
             else:
                 results["passed"] += 1
                 send_skill_result("spec_compliance", name, passed=True, details="No drift detected")

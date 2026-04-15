@@ -159,3 +159,37 @@ def compare_asn(device_name: str, expected_asn: int, live_asn: int) -> dict | No
         "expected": expected_asn,
         "live": live_asn,
     }
+
+
+def is_fortios_ha_standby(ha_output: str) -> bool:
+    """Determine if this FortiGate unit is the HA standby from ``get system ha status``.
+
+    In FortiOS HA output, the local unit is marked with ``*``. If the local
+    unit appears on a ``Slave`` line, it's the standby. If it appears on
+    ``Master`` or is the only unit listed, it's active.
+
+    Returns False for empty/unparseable output (safe default: assume active).
+    """
+    if not ha_output or not ha_output.strip():
+        return False
+
+    # Find lines with Master/Slave designations
+    local_is_slave = False
+    found_any = False
+
+    for line in ha_output.splitlines():
+        line_stripped = line.strip()
+        # Look for lines like:  "Slave :FGVM... , dc-fw-2 *"
+        # The * marks the local unit
+        if "*" not in line_stripped:
+            continue
+        found_any = True
+        lower = line_stripped.lower()
+        if "slave" in lower or "secondary" in lower:
+            local_is_slave = True
+            break
+
+    if not found_any:
+        return False
+
+    return local_is_slave
