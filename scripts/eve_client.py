@@ -17,6 +17,10 @@ from __future__ import annotations
 from typing import Any
 
 import requests
+import urllib3
+
+# EVE-NG uses self-signed certs — suppress the warning globally for this module.
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 class EveNgClient:
@@ -47,20 +51,48 @@ class EveNgClient:
             self.session.get(f"{self.base_url}/auth/logout")
             self._authenticated = False
 
-    def _get(self, path: str) -> Any:
-        resp = self.session.get(f"{self.base_url}{path}")
+    def _request_with_retry(
+        self, method: str, path: str, data: dict | None = None, retries: int = 3
+    ) -> Any:
+        """Make an API request with retry on lab-lock (400/412) errors.
+
+        EVE-NG holds a file lock during lab saves. Rapid successive calls
+        can hit this lock. Retry with a short backoff to let it release.
+        """
+        import time
+
+        url = f"{self.base_url}{path}"
+        for attempt in range(retries):
+            if method == "GET":
+                resp = self.session.get(url)
+            elif method == "POST":
+                resp = self.session.post(url, json=data or {})
+            elif method == "PUT":
+                resp = self.session.put(url, json=data or {})
+            elif method == "DELETE":
+                resp = self.session.delete(url)
+            else:
+                raise ValueError(f"Unknown method: {method}")
+
+            if resp.status_code in (400, 412) and attempt < retries - 1:
+                body = resp.text.lower()
+                if "lock" in body or "busy" in body or "60061" in body:
+                    time.sleep(0.5 * (attempt + 1))
+                    continue
+            resp.raise_for_status()
+            return resp.json().get("data", resp.json())
+
         resp.raise_for_status()
         return resp.json().get("data", resp.json())
+
+    def _get(self, path: str) -> Any:
+        return self._request_with_retry("GET", path)
 
     def _post(self, path: str, data: dict | None = None) -> Any:
-        resp = self.session.post(f"{self.base_url}{path}", json=data or {})
-        resp.raise_for_status()
-        return resp.json().get("data", resp.json())
+        return self._request_with_retry("POST", path, data)
 
     def _put(self, path: str, data: dict | None = None) -> Any:
-        resp = self.session.put(f"{self.base_url}{path}", json=data or {})
-        resp.raise_for_status()
-        return resp.json().get("data", resp.json())
+        return self._request_with_retry("PUT", path, data)
 
     def _delete(self, path: str) -> Any:
         resp = self.session.delete(f"{self.base_url}{path}")
@@ -70,10 +102,16 @@ class EveNgClient:
     # --- Lab management ---
 
     def create_lab(self, name: str, path: str = "/", description: str = "") -> dict:
-        """Create a new lab."""
+        """Create a new lab.
+
+        Args:
+            name: Lab name (without .unl extension).
+            path: Folder path where the lab is created. Defaults to root "/".
+            description: Lab description.
+        """
         return self._post(
             "/labs",
-            {"path": f"{path}{name}.unl", "name": name, "description": description},
+            {"path": path, "name": name, "description": description},
         )
 
     def get_lab(self, lab_path: str) -> dict:
