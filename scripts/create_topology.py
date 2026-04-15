@@ -34,8 +34,8 @@ PLATFORM_MAP: dict[str, dict] = {
     "cisco_iosxe": {
         "template": "c8000v",
         "image": "c8000v-17.13.01a",
-        "ram": 4096,
-        "cpu": 1,
+        "ram": 8192,
+        "cpu": 4,  # C8000v requires 4 vCPUs minimum to boot
         "ethernet": 5,  # 4 data (Gi1-Gi4) + 1 mgmt (Gi5)
     },
     "fortinet_fortios": {

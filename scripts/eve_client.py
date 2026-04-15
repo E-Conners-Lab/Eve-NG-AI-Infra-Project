@@ -140,13 +140,14 @@ class EveNgClient:
         ethernet: int = 4,
         left: int = 0,
         top: int = 0,
-        startup_config: str = "none",
+        startup_config: str = "0",
     ) -> dict:
         """Add a node to a lab.
 
         Args:
             startup_config: EVE-NG startup config mode.
-                "none" = no startup config (we push via SSH later).
+                "0" = no startup config, just boot (MUST be "0", not "none").
+                "none" maps to "Unconfigured" in EVE-NG which causes boot failure.
                 Pass a base64-encoded config string for startup injection.
         """
         data: dict[str, Any] = {
