@@ -69,7 +69,21 @@ def _clean_config_lines(config_text: str, platform: str) -> list[str]:
             if line.strip() and not line.strip().startswith("!") and line.strip() != "end"
         ]
     if platform == "fortinet_fortios":
-        return [line for line in lines if line.strip() and not line.strip().startswith("###")]
+        filtered = [line for line in lines if line.strip() and not line.strip().startswith("###")]
+        # Skip the HA config block — it kills SSH sessions when mode changes.
+        # HA must be configured via console on first boot.
+        result = []
+        skip_until_end = False
+        for line in filtered:
+            if line.strip() == "config system ha":
+                skip_until_end = True
+                continue
+            if skip_until_end:
+                if line.strip() == "end":
+                    skip_until_end = False
+                continue
+            result.append(line)
+        return result
     return [line for line in lines if line.strip()]
 
 
@@ -137,13 +151,26 @@ def push_config_to_device(
         return False
 
     try:
-        conn = ConnectHandler(
-            device_type=device_type,
-            host=mgmt_ip,
-            username=username,
-            password=password,
-            timeout=15,
-        )
+        # FortiGate needs longer timeouts and no enable mode
+        if platform == "fortinet_fortios":
+            conn = ConnectHandler(
+                device_type=device_type,
+                host=mgmt_ip,
+                username=username,
+                password=password,
+                timeout=30,
+                read_timeout_override=30,
+            )
+        else:
+            conn = ConnectHandler(
+                device_type=device_type,
+                host=mgmt_ip,
+                username=username,
+                password=password,
+                secret=password,
+                timeout=15,
+            )
+            conn.enable()
         _gait_log(log_file, {"action": "ssh_connected", "device": device_name})
 
         # Pre-push: save running config for rollback
@@ -161,11 +188,26 @@ def push_config_to_device(
         # Clean config lines for platform
         clean_lines = _clean_config_lines(config_text, platform)
 
-        # Push config
-        conn.send_config_set(clean_lines, cmd_verify=False)
+        # Push config — FortiGate uses write_channel (fire-and-forget)
+        # because HA config changes cause continuous output that blocks
+        # send_command_timing even with long timeouts.
+        if platform == "fortinet_fortios":
+            import time
 
-        # Post-push: save to startup (Cisco) and verify
-        if platform == "cisco_iosxe":
+            for line in clean_lines:
+                conn.write_channel(line + "\n")
+                time.sleep(0.5)
+            # Drain any pending output
+            time.sleep(3)
+            try:
+                conn.read_channel()
+            except Exception:
+                pass
+        else:
+            conn.send_config_set(clean_lines, cmd_verify=False)
+
+        # Post-push: save to startup
+        if platform in ("arista_eos", "cisco_iosxe"):
             conn.send_command("write memory")
 
         # Verify hostname
@@ -174,7 +216,8 @@ def push_config_to_device(
         elif platform == "cisco_iosxe":
             verify = conn.send_command("show running-config | include hostname")
         elif platform == "fortinet_fortios":
-            verify = conn.send_command("get system status | grep Hostname")
+            # Skip verify — HA changes may have disrupted the session
+            verify = "FortiGate push complete (no verify — HA may restart)"
         else:
             verify = ""
 

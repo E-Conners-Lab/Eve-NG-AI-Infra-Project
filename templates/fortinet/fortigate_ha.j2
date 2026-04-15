@@ -13,6 +13,15 @@ config system ha
     set hbdev "port3" 50
     set session-pickup enable
     set override disable
+{% if mgmt_ip %}
+    set ha-mgmt-status enable
+    config ha-mgmt-interfaces
+        edit 1
+            set interface "port6"
+            set gateway {{ mgmt_gateway }}
+        next
+    end
+{% endif %}
 end
 
 {% for iface in interfaces %}

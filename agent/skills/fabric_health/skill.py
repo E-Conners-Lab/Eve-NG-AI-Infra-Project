@@ -37,26 +37,37 @@ def parse_bgp_summary(raw_output: str, platform: str) -> dict:
     neighbors: list[dict] = []
     down_neighbors: list[dict] = []
 
-    # Both EOS and IOS-XE have similar tabular BGP summary format
-    # Match lines that start with an IP address
+    # Both EOS and IOS-XE have tabular BGP summary format, but column layout differs:
+    # IOS-XE:    IP  V  AS  MsgRcvd  MsgSent  TblVer  InQ  OutQ  Up/Down  State/PfxRcd
+    # EOS <4.30: IP  V  AS  MsgRcvd  MsgSent  InQ  OutQ  Up/Down  State/PfxRcd  [PfxAcc]
+    # EOS 4.33+: Description  IP  V  AS  MsgRcvd  MsgSent  InQ  OutQ  Up/Down  State  PfxRcd  PfxAcc
+    ip_pattern = re.compile(r"\d+\.\d+\.\d+\.\d+")
+
     for line in raw_output.splitlines():
         line = line.strip()
         if not line:
             continue
 
-        # Check if line starts with an IP address (neighbor line)
-        if not re.match(r"\d+\.\d+\.\d+\.\d+", line):
+        # Find the first IP address in the line — handles both EOS formats
+        ip_match = ip_pattern.search(line)
+        if not ip_match:
             continue
 
-        # Split by whitespace — works for both EOS and IOS-XE formats
-        # EOS:    IP  V  AS  MsgRcvd  MsgSent  InQ  OutQ  Up/Down  State/PfxRcd  [PfxAcc]
-        # IOS-XE: IP  V  AS  MsgRcvd  MsgSent  TblVer  InQ  OutQ  Up/Down  State/PfxRcd
-        parts = line.split()
+        # Skip header/info lines that mention IP-like patterns in context text
+        if any(kw in line.lower() for kw in ("identifier", "router", "vrf", "status")):
+            continue
+
+        # Extract fields starting from the IP address position
+        remainder = line[ip_match.start() :]
+        parts = remainder.split()
         if len(parts) < 9:
             continue
 
         neighbor_ip = parts[0]
-        asn = int(parts[2])
+        try:
+            asn = int(parts[2])
+        except (ValueError, IndexError):
+            continue
 
         # Determine BGP state. A non-established session has a state name
         # (Active, Idle, Connect, etc.) somewhere in the fields.

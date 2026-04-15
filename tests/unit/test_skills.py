@@ -36,6 +36,18 @@ Neighbor Status Codes: m - Under maintenance
   10.1.1.7    4 65004            112       114    0    0 01:30:00 Estab   3      3
 """
 
+# EOS 4.33+ format — Description column appears before Neighbor IP
+EOS_BGP_SUMMARY_433 = """
+BGP summary information for VRF default
+Router identifier 10.1.0.1, local AS number 65000
+Neighbor Status Codes: m - Under maintenance
+  Description              Neighbor V AS           MsgRcvd   MsgSent  InQ OutQ  Up/Down State   PfxRcd PfxAcc
+  dc-leaf-1                10.1.1.1 4 65001             11        14    0    0 00:05:17 Estab   1      1
+  dc-leaf-2                10.1.1.3 4 65002             11        13    0    0 00:05:18 Estab   1      1
+  dc-border-1              10.1.1.5 4 65003             11        13    0    0 00:05:18 Estab   3      3
+  dc-border-2              10.1.1.7 4 65004             11        13    0    0 00:05:17 Estab   3      3
+"""
+
 EOS_BGP_SUMMARY_WITH_FAILURE = """
 BGP summary information for VRF default
 Router identifier 10.1.0.1, local AS number 65000
@@ -122,6 +134,112 @@ class TestFabricHealth:
         assert "asn" in first
         assert "state" in first
         assert "prefixes_received" in first
+
+    def test_parse_eos_433_description_first(self) -> None:
+        """EOS 4.33+ puts Description before Neighbor IP — parser must handle it."""
+        from agent.skills.fabric_health.skill import parse_bgp_summary
+
+        result = parse_bgp_summary(EOS_BGP_SUMMARY_433, "arista_eos")
+        assert result["total_neighbors"] == 4
+        assert result["established"] == 4
+        assert result["down"] == 0
+        assert result["healthy"] is True
+        # Verify correct IP extraction despite Description column
+        ips = {n["neighbor"] for n in result["neighbors"]}
+        assert ips == {"10.1.1.1", "10.1.1.3", "10.1.1.5", "10.1.1.7"}
+
+
+# ---------------------------------------------------------------------------
+# Test: Per-platform interface parsers
+# ---------------------------------------------------------------------------
+class TestInterfaceParsers:
+    """Platform-specific parsers for show ip interface brief / equivalents."""
+
+    def test_parse_eos_interfaces(self) -> None:
+        from agent.skills.spec_compliance.skill import parse_eos_interfaces
+
+        output = (
+            "Interface   IP Address     Status  Protocol  MTU   Owner\n"
+            "Ethernet1   10.1.1.0/31    up      up        1500\n"
+            "Loopback0   10.1.0.1/32    up      up        65535\n"
+            "Management1 192.168.68.110/22  up  up        1500\n"
+        )
+        result = parse_eos_interfaces(output)
+        assert result["Ethernet1"] == "10.1.1.0/31"
+        assert result["Loopback0"] == "10.1.0.1/32"
+        assert result["Management1"] == "192.168.68.110/22"
+
+    def test_parse_iosxe_interfaces(self) -> None:
+        from agent.skills.spec_compliance.skill import parse_iosxe_interfaces
+
+        output = (
+            "Interface              IP-Address      OK? Method Status                Protocol\n"
+            "GigabitEthernet1       172.16.0.0      YES manual up                    up\n"
+            "GigabitEthernet5       192.168.68.120  YES manual up                    up\n"
+            "GigabitEthernet6       unassigned      YES unset  administratively down down\n"
+            "Loopback0              172.16.0.101    YES manual up                    up\n"
+        )
+        result = parse_iosxe_interfaces(output)
+        assert result["GigabitEthernet1"] == "172.16.0.0"
+        assert result["GigabitEthernet5"] == "192.168.68.120"
+        assert result["Loopback0"] == "172.16.0.101"
+        assert "GigabitEthernet6" not in result  # unassigned excluded
+
+    def test_parse_fortios_interfaces(self) -> None:
+        from agent.skills.spec_compliance.skill import parse_fortios_interfaces
+
+        output = (
+            "== [onboard]\n"
+            "\t==[port1]\n"
+            "\t\tmode: static\n"
+            "\t\tip: 10.99.0.1 255.255.255.254\n"
+            "\t\tstatus: up\n"
+            "\t==[port2]\n"
+            "\t\tmode: static\n"
+            "\t\tip: 10.99.1.0 255.255.255.254\n"
+            "\t\tstatus: up\n"
+            "\t==[port3]\n"
+            "\t\tmode: static\n"
+            "\t\tip: 0.0.0.0 0.0.0.0\n"
+            "\t\tstatus: down\n"
+        )
+        result = parse_fortios_interfaces(output)
+        assert result["port1"] == "10.99.0.1/31"
+        assert result["port2"] == "10.99.1.0/31"
+        assert "port3" not in result  # 0.0.0.0 excluded
+
+    def test_mask_to_prefix(self) -> None:
+        from agent.skills.spec_compliance.skill import _mask_to_prefix
+
+        assert _mask_to_prefix("255.255.255.254") == 31
+        assert _mask_to_prefix("255.255.255.0") == 24
+        assert _mask_to_prefix("255.255.252.0") == 22
+        assert _mask_to_prefix("255.255.255.255") == 32
+
+    def test_compare_bare_ip_against_cidr(self) -> None:
+        """Cisco bare IPs must match spec CIDR when host portion is the same."""
+        from agent.skills.spec_compliance.skill import compare_interfaces
+
+        device_spec = {
+            "interfaces": [
+                {"name": "GigabitEthernet1", "ipv4": "172.16.0.0/31"},
+                {"name": "GigabitEthernet2", "ipv4": "10.99.1.1/31"},
+            ]
+        }
+        # Cisco returns bare IPs
+        live = {"GigabitEthernet1": "172.16.0.0", "GigabitEthernet2": "10.99.1.1"}
+        drifts = compare_interfaces("dc-ce-1", device_spec, live)
+        assert len(drifts) == 0
+
+    def test_compare_bare_ip_detects_drift(self) -> None:
+        """Cisco bare IPs must detect drift when host IP differs."""
+        from agent.skills.spec_compliance.skill import compare_interfaces
+
+        device_spec = {"interfaces": [{"name": "GigabitEthernet1", "ipv4": "172.16.0.0/31"}]}
+        live = {"GigabitEthernet1": "172.16.0.99"}
+        drifts = compare_interfaces("dc-ce-1", device_spec, live)
+        assert len(drifts) == 1
+        assert drifts[0]["live"] == "172.16.0.99"
 
 
 # ---------------------------------------------------------------------------

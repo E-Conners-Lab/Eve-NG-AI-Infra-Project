@@ -67,6 +67,7 @@ router bgp {{ asn }}
       neighbor {{ peer_ip(iface) }} activate
 {% endfor %}
       network {{ loopback0_ip }}/{{ loopback0_mask }}
+   exit
    !
 {% if spines %}
    ! Overlay iBGP EVPN to spine route reflectors
@@ -81,6 +82,7 @@ router bgp {{ asn }}
 {% for spine in spines %}
       neighbor {{ ip_no_mask(spine.loopback0) }} activate
 {% endfor %}
+   exit
 {% elif evpn_peers %}
    ! Overlay EVPN to peer leaves (collapsed design — no spines)
 {% for peer in evpn_peers %}
@@ -94,6 +96,7 @@ router bgp {{ asn }}
 {% for peer in evpn_peers %}
       neighbor {{ ip_no_mask(peer.loopback0) }} activate
 {% endfor %}
+   exit
 {% endif %}
    !
 {% for mapping in vxlan.get('vni_mappings', []) %}
@@ -101,6 +104,7 @@ router bgp {{ asn }}
       rd auto
       route-target both {{ overlay_asn }}:{{ mapping.vni }}
       redistribute learned
+   exit
 {% endfor %}
 !
 {% if mgmt_ip %}

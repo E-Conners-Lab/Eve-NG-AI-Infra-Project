@@ -26,7 +26,10 @@ from netmiko import ConnectHandler
 from netmiko.exceptions import NetmikoAuthenticationException, NetmikoTimeoutException
 
 from agent.skills.fabric_health.skill import get_managed_devices, parse_bgp_summary
-from agent.skills.spec_compliance.skill import compare_asn, compare_interfaces
+from agent.skills.spec_compliance.skill import (
+    compare_asn,
+    compare_interfaces,
+)
 from agent.telegram_notifier import send_drift_alert, send_skill_result, send_summary
 from scripts.bootstrap_config import get_mgmt_ips
 from scripts.credentials import require_credentials
@@ -76,13 +79,26 @@ def _connect(
     if not device_type:
         return None
     try:
-        return ConnectHandler(
-            device_type=device_type,
-            host=mgmt_ip,
-            username=username,
-            password=password,
-            timeout=15,
-        )
+        if platform == "fortinet_fortios":
+            conn = ConnectHandler(
+                device_type=device_type,
+                host=mgmt_ip,
+                username=username,
+                password=password,
+                timeout=30,
+                read_timeout_override=30,
+            )
+        else:
+            conn = ConnectHandler(
+                device_type=device_type,
+                host=mgmt_ip,
+                username=username,
+                password=password,
+                secret=password,
+                timeout=15,
+            )
+            conn.enable()
+        return conn
     except (NetmikoAuthenticationException, NetmikoTimeoutException) as e:
         print(f"  {device_name}: connection failed — {e}")
         return None
@@ -257,25 +273,24 @@ def run_spec_compliance(spec: dict, creds: object, log_file: Path) -> dict:
         try:
             drifts: list[dict] = []
 
-            # Check interface IPs
-            if platform == "arista_eos" or platform == "cisco_iosxe":
-                output = conn.send_command("show ip interface brief")
-            elif platform == "fortinet_fortios":
-                output = conn.send_command("get system interface physical")
-            else:
-                output = ""
+            # Check interface IPs — per-platform parser
+            from agent.skills.spec_compliance.skill import (
+                parse_eos_interfaces,
+                parse_fortios_interfaces,
+                parse_iosxe_interfaces,
+            )
 
-            # Parse live interface IPs (simplified — extract IP per interface)
-            live_interfaces: dict[str, str] = {}
-            for line in output.splitlines():
-                parts = line.split()
-                if len(parts) >= 2:
-                    iface_name = parts[0]
-                    # Look for IP-like pattern in the line
-                    for part in parts[1:]:
-                        if "/" in part and "." in part:
-                            live_interfaces[iface_name] = part
-                            break
+            if platform == "arista_eos":
+                output = conn.send_command("show ip interface brief")
+                live_interfaces = parse_eos_interfaces(output)
+            elif platform == "cisco_iosxe":
+                output = conn.send_command("show ip interface brief")
+                live_interfaces = parse_iosxe_interfaces(output)
+            elif platform == "fortinet_fortios":
+                output = conn.send_command_timing("get system interface physical")
+                live_interfaces = parse_fortios_interfaces(output)
+            else:
+                live_interfaces = {}
 
             iface_drifts = compare_interfaces(name, dev, live_interfaces)
             drifts.extend(iface_drifts)

@@ -40,6 +40,7 @@ router bgp {{ asn }}
 {% endfor %}
       network {{ loopback0_ip }}/{{ loopback0_mask }}
       redistribute connected route-map ADVERTISE-DC
+   exit
    !
    ! Overlay iBGP EVPN to spine route reflectors
 {% for spine in spines %}
@@ -53,6 +54,7 @@ router bgp {{ asn }}
 {% for spine in spines %}
       neighbor {{ ip_no_mask(spine.loopback0) }} activate
 {% endfor %}
+   exit
 !
 {% if mgmt_ip %}
 interface Management1

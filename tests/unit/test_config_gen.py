@@ -321,11 +321,12 @@ class TestNoHardcodedValues:
 
         _extract_ips(spec)
 
-        # Also include management IPs from bootstrap config
-        from scripts.bootstrap_config import get_mgmt_ips
+        # Also include management IPs and gateway from bootstrap config
+        from scripts.bootstrap_config import get_mgmt_gateway, get_mgmt_ips
 
         for mgmt_ip in get_mgmt_ips().values():
             ips.add(mgmt_ip)
+        ips.add(get_mgmt_gateway())
 
         return ips
 

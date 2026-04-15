@@ -34,6 +34,7 @@ router bgp {{ asn }}
       neighbor {{ peer_ip(iface) }} activate
 {% endfor %}
       network {{ loopback0_ip }}/{{ loopback0_mask }}
+   exit
    !
    ! Overlay iBGP EVPN (route reflector)
 {% for neighbor in overlay.get('neighbors', []) %}
@@ -48,6 +49,7 @@ router bgp {{ asn }}
       neighbor {{ neighbor.address }} activate
       neighbor {{ neighbor.address }} route-reflector-client
 {% endfor %}
+   exit
 !
 {% if mgmt_ip %}
 interface Management1
