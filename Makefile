@@ -1,5 +1,6 @@
 .PHONY: test lint validate generate-spec generate-configs validate-configs \
        generate-testbed bootstrap-mgmt push-configs test-reachability deploy \
+       build-snapshot validate-batfish \
        install dev-install clean
 
 # Default target
@@ -83,6 +84,14 @@ agent-compliance:
 # Run agent on a schedule (every 5 minutes)
 agent-monitor:
 	python -m agent.runner --schedule 300
+
+# Build Batfish snapshot from spec + generated configs
+build-snapshot:
+	python -m batfish.snapshot
+
+# Batfish pre-deploy validation (requires Batfish Docker container running)
+validate-batfish: build-snapshot
+	python -m batfish.validate
 
 # Remove generated artifacts
 clean:
