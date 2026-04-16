@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "ai-infra-lab": {
+      "command": "/Users/elliotconner/PycharmProjects/JavaScript/Eve-NG_Agent/.venv/bin/python",
+      "args": ["mcp_server.py"],
+      "cwd": "/Users/elliotconner/PycharmProjects/JavaScript/Eve-NG_Agent"
+    }
+  }
+}
