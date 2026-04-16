@@ -13,6 +13,11 @@ on:
           - dc_east
           - branch_01
           - dr_west
+      skip_batfish:
+        description: "Emergency bypass — skip Batfish gate"
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   ci:
@@ -24,14 +29,49 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: uv pip install --system jsonschema pyyaml jinja2 pynetbox pytest ruff
+      - run: uv pip install --system jsonschema pyyaml jinja2 pynetbox pandas pytest ruff
       - run: ruff check .
       - run: ruff format --check .
       - run: pytest tests/unit/ -v
 
+  batfish-gate:
+    name: Batfish Pre-Deploy Gate
+    needs: ci
+    if: ${{ inputs.skip_batfish != true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      batfish:
+        image: batfish/allinone:latest
+        ports:
+          - 9997:9997
+          - 9996:9996
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: uv pip install --system pybatfish pyyaml jsonschema jinja2
+      - name: Wait for Batfish readiness
+        run: |
+          echo "Waiting for Batfish API..."
+          for i in $(seq 1 30); do
+            if curl -s http://localhost:9997/v2/status > /dev/null 2>&1; then
+              echo "Batfish ready"
+              break
+            fi
+            sleep 2
+          done
+      - name: Batfish validation (blocks deploy on failure)
+        env:
+          BATFISH_HOST: localhost
+        run: python -m batfish.validate --strict
+
   deploy:
     name: Push Configs to EVE-NG
-    needs: ci
+    needs: [ci, batfish-gate]
+    if: ${{ always() && needs.ci.result == 'success' && (needs.batfish-gate.result == 'success' || needs.batfish-gate.result == 'skipped') }}
     runs-on: ubuntu-latest
     environment: eve-ng
     steps:
@@ -40,14 +80,17 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: uv pip install --system -r requirements.txt scrapli scrapli-community
+      - run: uv pip install --system pyyaml jinja2 pynetbox netmiko
+      - name: Log Batfish bypass
+        if: ${{ inputs.skip_batfish == true }}
+        run: echo '{"action":"batfish_bypass","reason":"manual_override","timestamp":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' >> logs/deploy.jsonl
       - name: Generate spec from NetBox
         env:
           NETBOX_URL: ${{ secrets.NETBOX_URL }}
           NETBOX_TOKEN: ${{ secrets.NETBOX_TOKEN }}
         run: python -m generator.netbox_to_spec
       - name: Generate device configs
-        run: python generator/render_configs.py
+        run: python -m generator.render_configs
       - name: Push configs to devices
         env:
           DEVICE_USERNAME: ${{ secrets.DEVICE_USERNAME }}
@@ -61,6 +104,15 @@ jobs:
           DEVICE_USERNAME: ${{ secrets.DEVICE_USERNAME }}
           DEVICE_PASSWORD: ${{ secrets.DEVICE_PASSWORD }}
         run: python -m scripts.run_reachability
+      - name: Run agent validation
+        env:
+          DEVICE_USERNAME: ${{ secrets.DEVICE_USERNAME }}
+          DEVICE_PASSWORD: ${{ secrets.DEVICE_PASSWORD }}
+          FORTIGATE_USERNAME: ${{ secrets.FORTIGATE_USERNAME }}
+          FORTIGATE_PASSWORD: ${{ secrets.FORTIGATE_PASSWORD }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python -m agent.runner
       - name: Upload GAIT logs
         if: always()
         uses: actions/upload-artifact@v4

@@ -1,4 +1,4 @@
-name: CI — Schema + Config Gen + Lint
+name: CI — Lint + Tests + Batfish Validation
 
 on:
   push:
@@ -60,3 +60,50 @@ jobs:
       - run: uv pip install --system jsonschema pyyaml jinja2 pytest
       - name: Run config generation tests
         run: pytest tests/unit/test_config_gen.py -v
+
+  unit-tests:
+    name: All Unit Tests
+    needs: config-gen
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: uv pip install --system jsonschema pyyaml jinja2 pynetbox pandas pytest
+      - name: Run all unit tests (excludes integration)
+        run: pytest tests/ --ignore=tests/integration -v
+
+  batfish-validation:
+    name: Batfish Pre-Deploy Validation
+    needs: config-gen
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      batfish:
+        image: batfish/allinone:latest
+        ports:
+          - 9997:9997
+          - 9996:9996
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: uv pip install --system pybatfish pyyaml jsonschema jinja2
+      - name: Wait for Batfish readiness
+        run: |
+          echo "Waiting for Batfish API..."
+          for i in $(seq 1 30); do
+            if curl -s http://localhost:9997/v2/status > /dev/null 2>&1; then
+              echo "Batfish ready"
+              break
+            fi
+            sleep 2
+          done
+      - name: Run Batfish validation
+        env:
+          BATFISH_HOST: localhost
+        run: python -m batfish.validate --strict
