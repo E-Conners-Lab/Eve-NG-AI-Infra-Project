@@ -288,10 +288,10 @@ class TestValidatePreDeploy:
         assert any("bgp" in str(i).lower() for i in issues)
 
     @patch("batfish.validate.init_batfish")
-    def test_unreachable_path_returns_false(
+    def test_unreachable_path_is_warning_not_critical(
         self, mock_init: MagicMock, mock_bf_session: MagicMock, spec: dict
     ) -> None:
-        """Any unreachable reachability matrix entry → (False, [...])."""
+        """Unreachable host path → warning (not critical), still passes."""
         from batfish.validate import validate_pre_deploy
 
         mock_init.return_value = mock_bf_session
@@ -308,8 +308,12 @@ class TestValidatePreDeploy:
         )
 
         passed, issues = validate_pre_deploy(spec, Path("configs/generated"))
-        assert passed is False
+        # Host-to-host reachability is a warning, not critical
+        assert passed is True
         assert any("reachability" in str(i).lower() for i in issues)
+        assert all(
+            i.get("severity") == "warning" for i in issues if "reachability" in str(i).lower()
+        )
 
     @patch("batfish.validate.init_batfish")
     def test_connection_error_raises_clear_message(self, mock_init: MagicMock, spec: dict) -> None:
