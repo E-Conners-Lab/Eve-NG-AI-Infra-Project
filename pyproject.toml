@@ -21,6 +21,9 @@ generator = [
 [tool.pytest.ini_options]
 testpaths = ["tests", "generator/tests"]
 pythonpath = ["."]
+markers = [
+    "integration: requires live EVE-NG/NetBox/Batfish infrastructure",
+]
 
 [tool.setuptools.packages.find]
 where = ["."]

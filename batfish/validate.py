@@ -28,7 +28,9 @@ logger = logging.getLogger(__name__)
 SNAPSHOT_OUTPUT = Path(__file__).parent / "snapshot"
 
 # Compatible BGP session statuses (everything else is a problem)
-BGP_COMPATIBLE_STATUSES = {"UNIQUE_MATCH", "DYNAMIC_MATCH"}
+# HALF_OPEN = iBGP overlay sessions that depend on underlay reachability.
+# These are expected for EVPN peers using update-source Loopback0.
+BGP_COMPATIBLE_STATUSES = {"UNIQUE_MATCH", "DYNAMIC_MATCH", "HALF_OPEN"}
 
 # Reachable traceroute dispositions
 REACHABLE_DISPOSITIONS = {"ACCEPTED", "DELIVERED_TO_SUBNET", "EXITS_NETWORK"}
@@ -161,7 +163,9 @@ def check_reachability(
     }
 
 
-def failure_impact(session: object, node: str, spec: dict) -> dict:
+def failure_impact(
+    session: object, node: str, spec: dict, base_snapshot: str = "validation"
+) -> dict:
     """Simulate a node failure and check which reachability paths break.
 
     Forks the snapshot with the target node deactivated, then re-runs
@@ -172,7 +176,7 @@ def failure_impact(session: object, node: str, spec: dict) -> dict:
     """
     failure_snapshot = f"fail-{node}"
     session.fork_snapshot(
-        base_name="validation",
+        base_name=base_snapshot,
         name=failure_snapshot,
         deactivate_nodes=[node],
         overwrite=True,
