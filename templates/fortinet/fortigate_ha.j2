@@ -28,6 +28,7 @@ end
 config system interface
     edit "{{ iface.name }}"
 {% if iface.get('ipv4') %}
+        set mode static
         set ip {{ ip_no_mask(iface.ipv4) }} {{ cidr_to_subnet(ip_mask(iface.ipv4) | int) }}
 {% endif %}
         set allowaccess ping https ssh
@@ -39,6 +40,7 @@ end
 {% if mgmt_ip %}
 config system interface
     edit "port6"
+        set mode static
         set ip {{ mgmt_ip }} 255.255.252.0
         set allowaccess ping https ssh
         set description "Management"

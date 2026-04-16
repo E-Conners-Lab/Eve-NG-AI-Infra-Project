@@ -67,11 +67,11 @@ Multi-site, multi-vendor, HA network lab running in EVE-NG on Proxmox. Managed b
 
 ## Agent Boundary
 
-**Managed (config + monitor):** dc-spine-1, dc-spine-2, dc-leaf-1, dc-leaf-2, dc-border-1, dc-border-2, br-ce-1, dr-leaf-1, dr-leaf-2
+**Managed (config + monitor):** dc-spine-1, dc-spine-2, dc-leaf-1, dc-leaf-2, dc-border-1, dc-border-2, dc-fw-1, dc-fw-2, dc-ce-1, dc-host-1, dc-host-2, br-ce-1, br-host-1, dr-leaf-1, dr-leaf-2, dr-fw-1, dr-fw-2, dr-ce-1, dr-host-1
 
-**Observed (read-only):** External interfaces on dc-border-1/2 toward firewalls, dr-leaf-1/2 toward firewalls
+**Observed (read-only interfaces):** dc-border-1:Ethernet3, dc-border-2:Ethernet3 (toward firewalls), dr-leaf-1:Ethernet2, dr-leaf-2:Ethernet2 (toward firewalls)
 
-**Excluded:** All firewalls (dc-fw-1/2, dr-fw-1/2), CE routers (dc-ce-1, dr-ce-1), provider (sp-pe-1/2)
+**Excluded:** sp-pe-1, sp-pe-2 (service provider — not customer equipment)
 
 ## Pipeline
 
