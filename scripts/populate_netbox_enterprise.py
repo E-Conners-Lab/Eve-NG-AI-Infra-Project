@@ -190,8 +190,6 @@ def populate_enterprise(nb: pynetbox.api, creds: object | None = None) -> None:
                 "dc-leaf-2": 32,
                 "dc-border-1": 28,
                 "dc-border-2": 26,
-                "dc-host-1": 10,
-                "dc-host-2": 8,
             },
         },
         {
@@ -219,10 +217,9 @@ def populate_enterprise(nb: pynetbox.api, creds: object | None = None) -> None:
             "name": "Branch-01-R1",
             "site_slug": "branch-01",
             "u_height": 12,
-            "desc": "Branch office rack — single CE + host",
+            "desc": "Branch office rack — single CE",
             "devices": {
                 "br-ce-1": 10,
-                "br-host-1": 4,
             },
         },
         {
@@ -236,7 +233,6 @@ def populate_enterprise(nb: pynetbox.api, creds: object | None = None) -> None:
                 "dr-fw-1": 30,
                 "dr-fw-2": 28,
                 "dr-ce-1": 20,
-                "dr-host-1": 10,
             },
         },
     ]
