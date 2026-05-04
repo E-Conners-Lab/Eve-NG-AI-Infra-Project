@@ -166,9 +166,9 @@ def run_fabric_health(spec: dict, creds: object, log_file: Path) -> dict:
 
             results["devices"][name] = bgp_result
         except Exception as e:
-            logger.exception("Error on device: %s", e)
+            logger.error("Error on device %s: %s", name, type(e).__name__)
             results["failed"] += 1
-            results["devices"][name] = {"status": f"error: {e}"}
+            results["devices"][name] = {"status": f"error: {type(e).__name__}"}
             with contextlib.suppress(Exception):
                 conn.disconnect()
 
@@ -231,9 +231,9 @@ def run_branch_connectivity(spec: dict, creds: object, log_file: Path) -> dict:
 
             results["devices"][name] = bgp_result
         except Exception as e:
-            logger.exception("Error on device: %s", e)
+            logger.error("Error on device %s: %s", name, type(e).__name__)
             results["failed"] += 1
-            results["devices"][name] = {"status": f"error: {e}"}
+            results["devices"][name] = {"status": f"error: {type(e).__name__}"}
             with contextlib.suppress(Exception):
                 conn.disconnect()
 
@@ -338,21 +338,22 @@ def run_spec_compliance(spec: dict, creds: object, log_file: Path) -> dict:
                 results["all_drifts"].extend(drifts)
                 send_drift_alert(name, drifts)
                 # Write drift to NetBox journal (if enabled, never crashes agent)
+                # reconcile_drifts handles its own exceptions and logs failures
                 try:
                     from agent.netbox_reconciler import reconcile_drifts
 
                     reconcile_drifts(name, drifts)
-                except Exception:
-                    pass  # NetBox failure must never block the agent
+                except Exception as exc:
+                    logger.warning("NetBox reconciler import/call error: %s", type(exc).__name__)
             else:
                 results["passed"] += 1
                 send_skill_result("spec_compliance", name, passed=True, details="No drift detected")
 
             results["devices"][name] = {"drifts": drifts}
         except Exception as e:
-            logger.exception("Error on device: %s", e)
+            logger.error("Error on device %s: %s", name, type(e).__name__)
             results["failed"] += 1
-            results["devices"][name] = {"status": f"error: {e}"}
+            results["devices"][name] = {"status": f"error: {type(e).__name__}"}
             with contextlib.suppress(Exception):
                 conn.disconnect()
 

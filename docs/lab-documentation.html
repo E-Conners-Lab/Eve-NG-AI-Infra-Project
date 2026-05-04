@@ -1,0 +1,1978 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EVE-NG AI Infrastructure Lab — Documentation</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface2: #1c2333;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-muted: #8b949e;
+    --accent: #58a6ff;
+    --arista: #3b82f6;
+    --cisco: #22c55e;
+    --fortinet: #ef4444;
+    --alpine: #6b7280;
+    --managed: #22c55e;
+    --observed: #f59e0b;
+    --excluded: #6b7280;
+    --wan: #a855f7;
+    --success: #3fb950;
+    --warning: #d29922;
+    --danger: #f85149;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+
+  /* Navigation */
+  .nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 24px;
+    height: 56px;
+    gap: 8px;
+  }
+
+  .nav-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    margin-right: 24px;
+    white-space: nowrap;
+  }
+
+  .nav-tab {
+    padding: 8px 16px;
+    border: none;
+    background: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 14px;
+    font-family: inherit;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+    height: 56px;
+    display: flex;
+    align-items: center;
+  }
+
+  .nav-tab:hover { color: var(--text); }
+  .nav-tab.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+  }
+
+  .nav-stats {
+    margin-left: auto;
+    display: flex;
+    gap: 16px;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  .nav-stat span { color: var(--text); font-weight: 600; }
+
+  /* Main Layout */
+  .main {
+    margin-top: 56px;
+    min-height: calc(100vh - 56px);
+  }
+
+  .tab-content {
+    display: none;
+    padding: 24px;
+    max-width: 1600px;
+    margin: 0 auto;
+  }
+
+  .tab-content.active { display: block; }
+
+  /* ============================
+     TOPOLOGY TAB
+     ============================ */
+  .topo-layout {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: 24px;
+    height: calc(100vh - 104px);
+  }
+
+  .topo-canvas-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .topo-controls {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    z-index: 10;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .flow-btn {
+    padding: 5px 10px;
+    font-size: 11px;
+    font-family: inherit;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--surface2);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .flow-btn:hover { border-color: var(--accent); color: var(--text); }
+  .flow-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  .topo-svg {
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Node styles in SVG */
+  .node-group { cursor: pointer; }
+  .node-group:hover .node-rect { filter: brightness(1.3); }
+
+  .node-rect {
+    rx: 6;
+    ry: 6;
+    stroke-width: 1.5;
+    transition: filter 0.15s;
+  }
+
+  .node-label {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 11px;
+    fill: #fff;
+    text-anchor: middle;
+    pointer-events: none;
+    font-weight: 600;
+  }
+
+  .node-sublabel {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 9px;
+    fill: rgba(255,255,255,0.7);
+    text-anchor: middle;
+    pointer-events: none;
+  }
+
+  .link-line {
+    stroke-width: 1.5;
+    fill: none;
+    opacity: 0.4;
+  }
+
+  .link-line.highlighted {
+    opacity: 1;
+    stroke-width: 2.5;
+  }
+
+  .site-box {
+    fill: none;
+    stroke-dasharray: 6 3;
+    stroke-width: 1;
+    rx: 12;
+    ry: 12;
+  }
+
+  .site-label {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    opacity: 0.8;
+  }
+
+  /* Animated flow particles */
+  @keyframes flowMove {
+    0% { offset-distance: 0%; }
+    100% { offset-distance: 100%; }
+  }
+
+  .flow-particle {
+    r: 3;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .flow-particle.visible {
+    opacity: 0.9;
+    animation: flowMove 2s linear infinite;
+  }
+
+  /* Detail panel */
+  .detail-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    overflow-y: auto;
+    max-height: calc(100vh - 104px);
+  }
+
+  .detail-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+  }
+
+  .detail-card h3 {
+    font-size: 13px;
+    color: var(--accent);
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .detail-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 0;
+    font-size: 13px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .detail-row:last-child { border-bottom: none; }
+  .detail-row .label { color: var(--text-muted); }
+  .detail-row .value { color: var(--text); font-family: 'SF Mono', Menlo, monospace; font-size: 12px; }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 3px 0;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  .legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+
+  .boundary-tag {
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-weight: 500;
+  }
+
+  .boundary-managed { background: rgba(34,197,94,0.15); color: var(--managed); }
+  .boundary-observed { background: rgba(245,158,11,0.15); color: var(--observed); }
+  .boundary-excluded { background: rgba(107,114,128,0.15); color: var(--excluded); }
+
+  /* ============================
+     RUNBOOK / ROUTING TABS
+     ============================ */
+  .runbook {
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  .runbook h1 {
+    font-size: 28px;
+    margin-bottom: 8px;
+  }
+
+  .runbook .subtitle {
+    color: var(--text-muted);
+    font-size: 15px;
+    margin-bottom: 32px;
+  }
+
+  .runbook h2 {
+    font-size: 20px;
+    margin: 32px 0 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+    color: var(--accent);
+  }
+
+  .runbook h3 {
+    font-size: 16px;
+    margin: 20px 0 10px;
+    color: var(--text);
+  }
+
+  .runbook p, .runbook li {
+    font-size: 14px;
+    color: var(--text-muted);
+    line-height: 1.7;
+  }
+
+  .runbook ul, .runbook ol {
+    padding-left: 24px;
+    margin: 8px 0;
+  }
+
+  .runbook li { margin: 4px 0; }
+  .runbook strong { color: var(--text); }
+
+  .runbook code {
+    font-family: 'SF Mono', Menlo, monospace;
+    font-size: 12px;
+    background: var(--surface2);
+    padding: 2px 6px;
+    border-radius: 3px;
+    color: var(--accent);
+  }
+
+  .code-block {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px;
+    margin: 12px 0;
+    overflow-x: auto;
+    position: relative;
+  }
+
+  .code-block pre {
+    font-family: 'SF Mono', Menlo, monospace;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--text);
+    margin: 0;
+  }
+
+  .code-block .copy-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    padding: 4px 8px;
+    font-size: 11px;
+    font-family: inherit;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-muted);
+    cursor: pointer;
+  }
+
+  .code-block .copy-btn:hover { color: var(--text); border-color: var(--accent); }
+
+  .callout {
+    border-radius: 6px;
+    padding: 14px 16px;
+    margin: 12px 0;
+    font-size: 13px;
+    line-height: 1.6;
+    display: flex;
+    gap: 10px;
+  }
+
+  .callout-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+
+  .callout-warn {
+    background: rgba(210,153,34,0.08);
+    border: 1px solid rgba(210,153,34,0.3);
+    color: var(--warning);
+  }
+
+  .callout-danger {
+    background: rgba(248,81,73,0.08);
+    border: 1px solid rgba(248,81,73,0.3);
+    color: var(--danger);
+  }
+
+  .callout-info {
+    background: rgba(88,166,255,0.08);
+    border: 1px solid rgba(88,166,255,0.3);
+    color: var(--accent);
+  }
+
+  .callout-success {
+    background: rgba(63,185,80,0.08);
+    border: 1px solid rgba(63,185,80,0.3);
+    color: var(--success);
+  }
+
+  .phase-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 28px 0 12px;
+  }
+
+  .phase-num {
+    background: var(--accent);
+    color: #fff;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  .phase-title {
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  .table-wrap {
+    overflow-x: auto;
+    margin: 12px 0;
+  }
+
+  .runbook table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  .runbook th {
+    text-align: left;
+    padding: 8px 12px;
+    background: var(--surface2);
+    color: var(--text-muted);
+    font-weight: 600;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .runbook td {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-muted);
+  }
+
+  .runbook td code {
+    font-size: 11px;
+  }
+
+  /* Search in troubleshooting */
+  .search-bar {
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    padding: 12px 0;
+    z-index: 5;
+    margin-bottom: 8px;
+  }
+
+  .search-bar input {
+    width: 100%;
+    padding: 10px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 14px;
+    outline: none;
+  }
+
+  .search-bar input:focus { border-color: var(--accent); }
+  .search-bar input::placeholder { color: var(--text-muted); }
+
+  .ts-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin: 12px 0;
+    overflow: hidden;
+  }
+
+  .ts-header {
+    padding: 14px 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    user-select: none;
+  }
+
+  .ts-header:hover { background: var(--surface2); }
+
+  .ts-severity {
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+
+  .sev-critical { background: rgba(248,81,73,0.15); color: var(--danger); }
+  .sev-high { background: rgba(210,153,34,0.15); color: var(--warning); }
+  .sev-medium { background: rgba(88,166,255,0.15); color: var(--accent); }
+
+  .ts-title {
+    font-size: 14px;
+    font-weight: 600;
+    flex: 1;
+  }
+
+  .ts-chevron {
+    color: var(--text-muted);
+    transition: transform 0.2s;
+    font-size: 12px;
+  }
+
+  .ts-section.open .ts-chevron { transform: rotate(90deg); }
+
+  .ts-body {
+    display: none;
+    padding: 0 16px 16px;
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.7;
+  }
+
+  .ts-section.open .ts-body { display: block; }
+
+  .ts-body h4 {
+    font-size: 13px;
+    color: var(--text);
+    margin: 12px 0 6px;
+  }
+
+  .ts-body h4:first-child { margin-top: 0; }
+
+  .ts-body ul { padding-left: 20px; }
+  .ts-body li { margin: 3px 0; font-size: 13px; }
+  .ts-body code {
+    font-family: 'SF Mono', Menlo, monospace;
+    font-size: 11px;
+    background: var(--surface2);
+    padding: 1px 5px;
+    border-radius: 3px;
+    color: var(--accent);
+  }
+
+  .ts-hidden { display: none; }
+
+  /* Prompt output */
+  .prompt-output {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    padding: 12px 24px;
+    display: none;
+    align-items: center;
+    gap: 12px;
+    z-index: 50;
+  }
+
+  .prompt-output.visible { display: flex; }
+
+  .prompt-text {
+    flex: 1;
+    font-family: 'SF Mono', Menlo, monospace;
+    font-size: 12px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .prompt-copy {
+    padding: 6px 14px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .prompt-copy:hover { filter: brightness(1.1); }
+
+  /* Routing tab specific */
+  .routing-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 16px 0;
+  }
+
+  .routing-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+  }
+
+  .routing-card h4 {
+    font-size: 14px;
+    color: var(--accent);
+    margin-bottom: 10px;
+    font-weight: 600;
+  }
+
+  .routing-card .detail-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 0;
+    font-size: 13px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .routing-card .detail-row:last-child { border-bottom: none; }
+  .routing-card .label { color: var(--text-muted); }
+  .routing-card .value { color: var(--text); font-family: 'SF Mono', Menlo, monospace; font-size: 12px; }
+
+  .routing-card-full {
+    grid-column: 1 / -1;
+  }
+
+  .asn-badge {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: 'SF Mono', Menlo, monospace;
+  }
+
+  .asn-dc { background: rgba(59,130,246,0.15); color: var(--arista); }
+  .asn-sp { background: rgba(168,85,247,0.15); color: var(--wan); }
+  .asn-ce { background: rgba(34,197,94,0.15); color: var(--cisco); }
+  .asn-dr { background: rgba(245,158,11,0.15); color: var(--observed); }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-title">EVE-NG AI Infra Lab</div>
+  <button class="nav-tab active" data-tab="topology">Topology</button>
+  <button class="nav-tab" data-tab="routing">Routing</button>
+  <button class="nav-tab" data-tab="build">Build Runbook</button>
+  <button class="nav-tab" data-tab="troubleshoot">Troubleshooting</button>
+  <div class="nav-stats">
+    <div><span>21</span> nodes</div>
+    <div><span>3</span> sites</div>
+    <div><span>4</span> vendors</div>
+  </div>
+</nav>
+
+<div class="main">
+
+  <!-- ==================== TOPOLOGY TAB ==================== -->
+  <div class="tab-content active" id="tab-topology">
+    <div class="topo-layout">
+      <div class="topo-canvas-wrap">
+        <div class="topo-controls">
+          <button class="flow-btn" data-flow="underlay">eBGP Underlay</button>
+          <button class="flow-btn" data-flow="overlay">iBGP EVPN Overlay</button>
+          <button class="flow-btn" data-flow="vxlan">VXLAN Data Plane</button>
+          <button class="flow-btn" data-flow="wan">WAN Transit</button>
+          <button class="flow-btn" data-flow="ha">FW HA Failover</button>
+          <button class="flow-btn" data-flow="none">Clear</button>
+        </div>
+        <svg class="topo-svg" id="topoSvg" viewBox="0 0 1500 1060"></svg>
+      </div>
+      <div class="detail-panel" id="detailPanel">
+        <div class="detail-card">
+          <h3>Legend — Vendor</h3>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--arista)"></div>Arista vEOS (8)</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--cisco)"></div>Cisco C8000v (5)</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--fortinet)"></div>FortiGate (4)</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--alpine)"></div>Alpine Linux (4)</div>
+        </div>
+        <div class="detail-card">
+          <h3>Legend — Agent Boundary</h3>
+          <div class="legend-item"><span class="boundary-tag boundary-managed">MANAGED</span>Config + Monitor (19 nodes)</div>
+          <div class="legend-item"><span class="boundary-tag boundary-observed">OBSERVED</span>Read-only interfaces on border/leaf toward FWs</div>
+          <div class="legend-item"><span class="boundary-tag boundary-excluded">EXCLUDED</span>SP PEs only (not customer equipment)</div>
+        </div>
+        <div class="detail-card" id="nodeDetail">
+          <h3>Node Detail</h3>
+          <p style="font-size:13px;color:var(--text-muted)">Click a node on the topology to view details.</p>
+        </div>
+        <div class="detail-card">
+          <h3>Addressing</h3>
+          <div class="detail-row"><span class="label">DC Loopbacks</span><span class="value">10.1.0.0/24</span></div>
+          <div class="detail-row"><span class="label">DC P2P Links</span><span class="value">10.1.1.0/24</span></div>
+          <div class="detail-row"><span class="label">DC VTEP</span><span class="value">10.1.2.0/24</span></div>
+          <div class="detail-row"><span class="label">VNI 10100</span><span class="value">10.10.1.0/24</span></div>
+          <div class="detail-row"><span class="label">VNI 10200</span><span class="value">10.10.2.0/24</span></div>
+          <div class="detail-row"><span class="label">Border-FW</span><span class="value">10.99.0.0/24</span></div>
+          <div class="detail-row"><span class="label">FW-CE</span><span class="value">10.99.1.0/24</span></div>
+          <div class="detail-row"><span class="label">SP Transport</span><span class="value">172.16.0.0/24</span></div>
+          <div class="detail-row"><span class="label">Branch</span><span class="value">10.20.0.0/16</span></div>
+          <div class="detail-row"><span class="label">DR Overlay</span><span class="value">10.30.0.0/16</span></div>
+          <div class="detail-row"><span class="label">DR Underlay</span><span class="value">10.31.0.0/24</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== ROUTING TAB ==================== -->
+  <div class="tab-content" id="tab-routing">
+    <div class="runbook">
+      <h1>Routing Architecture</h1>
+      <p class="subtitle">Complete BGP, EVPN/VXLAN, route-policy, and prefix-list documentation derived from live configs and the YAML spec.</p>
+
+      <h2>Design Overview</h2>
+
+      <p>The entire network uses BGP exclusively — no OSPF, no static routes. The design splits into underlay (eBGP point-to-point) and overlay (iBGP EVPN via loopbacks). Each leaf has a unique ASN; spines share AS 65000 and act as route reflectors for the EVPN overlay.</p>
+
+      <div class="code-block">
+        <button class="copy-btn" onclick="copyBlock(this)">Copy</button>
+        <pre>                    eBGP Underlay (/31 P2P)
+    Leaves ─────────────────────────── Spines (AS 65000)
+    (AS 65001-65004)                   Route Reflectors
+          │                                  │
+          └── iBGP EVPN Overlay (Loopback0) ─┘
+                      │
+               VXLAN Data Plane
+              (VTEP on Loopback1)
+
+    CE Routers (AS 65100) ── eBGP ── SP PEs (AS 64500)
+       dual-homed via PRIMARY/SECONDARY route-maps</pre>
+      </div>
+
+      <h2>BGP ASN Assignments</h2>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>ASN</th><th>Role</th><th>Devices</th><th>Site</th></tr></thead>
+          <tbody>
+            <tr><td><span class="asn-badge asn-dc">65000</span></td><td>DC Spine / EVPN RR</td><td>dc-spine-1, dc-spine-2</td><td>DC-East</td></tr>
+            <tr><td><span class="asn-badge asn-dc">65001</span></td><td>Compute Leaf</td><td>dc-leaf-1</td><td>DC-East</td></tr>
+            <tr><td><span class="asn-badge asn-dc">65002</span></td><td>Compute Leaf</td><td>dc-leaf-2</td><td>DC-East</td></tr>
+            <tr><td><span class="asn-badge asn-dc">65003</span></td><td>Border Leaf</td><td>dc-border-1</td><td>DC-East</td></tr>
+            <tr><td><span class="asn-badge asn-dc">65004</span></td><td>Border Leaf</td><td>dc-border-2</td><td>DC-East</td></tr>
+            <tr><td><span class="asn-badge asn-ce">65100</span></td><td>Customer Edge</td><td>dc-ce-1, dr-ce-1, br-ce-1</td><td>All sites</td></tr>
+            <tr><td><span class="asn-badge asn-dr">65201</span></td><td>DR Leaf</td><td>dr-leaf-1</td><td>DR-West</td></tr>
+            <tr><td><span class="asn-badge asn-dr">65202</span></td><td>DR Leaf</td><td>dr-leaf-2</td><td>DR-West</td></tr>
+            <tr><td><span class="asn-badge asn-sp">64500</span></td><td>Service Provider PE</td><td>sp-pe-1, sp-pe-2</td><td>WAN</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2>DC-East Fabric — eBGP Underlay</h2>
+
+      <p>All underlay sessions run on /31 point-to-point links. Spines peer with all leaves and borders. Maximum-paths 4 with ECMP 4 enabled on spines.</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Device A</th><th>Interface</th><th>IP</th><th>Device B</th><th>Interface</th><th>IP</th><th>A-side ASN</th><th>B-side ASN</th></tr></thead>
+          <tbody>
+            <tr><td>dc-spine-1</td><td>Eth1</td><td><code>10.1.1.0/31</code></td><td>dc-leaf-1</td><td>Eth1</td><td><code>10.1.1.1/31</code></td><td>65000</td><td>65001</td></tr>
+            <tr><td>dc-spine-1</td><td>Eth2</td><td><code>10.1.1.2/31</code></td><td>dc-leaf-2</td><td>Eth1</td><td><code>10.1.1.3/31</code></td><td>65000</td><td>65002</td></tr>
+            <tr><td>dc-spine-1</td><td>Eth3</td><td><code>10.1.1.4/31</code></td><td>dc-border-1</td><td>Eth1</td><td><code>10.1.1.5/31</code></td><td>65000</td><td>65003</td></tr>
+            <tr><td>dc-spine-1</td><td>Eth4</td><td><code>10.1.1.6/31</code></td><td>dc-border-2</td><td>Eth1</td><td><code>10.1.1.7/31</code></td><td>65000</td><td>65004</td></tr>
+            <tr><td>dc-spine-2</td><td>Eth1</td><td><code>10.1.1.8/31</code></td><td>dc-leaf-1</td><td>Eth2</td><td><code>10.1.1.9/31</code></td><td>65000</td><td>65001</td></tr>
+            <tr><td>dc-spine-2</td><td>Eth2</td><td><code>10.1.1.10/31</code></td><td>dc-leaf-2</td><td>Eth2</td><td><code>10.1.1.11/31</code></td><td>65000</td><td>65002</td></tr>
+            <tr><td>dc-spine-2</td><td>Eth3</td><td><code>10.1.1.12/31</code></td><td>dc-border-1</td><td>Eth2</td><td><code>10.1.1.13/31</code></td><td>65000</td><td>65003</td></tr>
+            <tr><td>dc-spine-2</td><td>Eth4</td><td><code>10.1.1.14/31</code></td><td>dc-border-2</td><td>Eth2</td><td><code>10.1.1.15/31</code></td><td>65000</td><td>65004</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2>DC-East Fabric — iBGP EVPN Overlay</h2>
+
+      <p>Overlay sessions source from Loopback0 and use eBGP with <code>ebgp-multihop 3</code>. Spines act as route reflectors with <code>next-hop-unchanged</code> for all leaf/border peers. Extended communities are enabled for RT/RD transport.</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Route Reflector</th><th>Router ID</th><th>EVPN Peer</th><th>Peer Loopback</th><th>Peer ASN</th><th>Address Family</th></tr></thead>
+          <tbody>
+            <tr><td>dc-spine-1</td><td><code>10.1.0.1</code></td><td>dc-leaf-1</td><td><code>10.1.0.11</code></td><td>65001</td><td>EVPN</td></tr>
+            <tr><td>dc-spine-1</td><td><code>10.1.0.1</code></td><td>dc-leaf-2</td><td><code>10.1.0.12</code></td><td>65002</td><td>EVPN</td></tr>
+            <tr><td>dc-spine-1</td><td><code>10.1.0.1</code></td><td>dc-border-1</td><td><code>10.1.0.13</code></td><td>65003</td><td>EVPN</td></tr>
+            <tr><td>dc-spine-1</td><td><code>10.1.0.1</code></td><td>dc-border-2</td><td><code>10.1.0.14</code></td><td>65004</td><td>EVPN</td></tr>
+            <tr><td>dc-spine-2</td><td><code>10.1.0.2</code></td><td>dc-leaf-1</td><td><code>10.1.0.11</code></td><td>65001</td><td>EVPN</td></tr>
+            <tr><td>dc-spine-2</td><td><code>10.1.0.2</code></td><td>dc-leaf-2</td><td><code>10.1.0.12</code></td><td>65002</td><td>EVPN</td></tr>
+            <tr><td>dc-spine-2</td><td><code>10.1.0.2</code></td><td>dc-border-1</td><td><code>10.1.0.13</code></td><td>65003</td><td>EVPN</td></tr>
+            <tr><td>dc-spine-2</td><td><code>10.1.0.2</code></td><td>dc-border-2</td><td><code>10.1.0.14</code></td><td>65004</td><td>EVPN</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2>EVPN / VXLAN Data Plane</h2>
+
+      <div class="routing-grid">
+        <div class="routing-card">
+          <h4>VNI Mappings — DC-East</h4>
+          <div class="detail-row"><span class="label">VNI 10100 / VLAN 100</span><span class="value">SERVERS_A</span></div>
+          <div class="detail-row"><span class="label">Gateway</span><span class="value">10.10.1.1/24</span></div>
+          <div class="detail-row"><span class="label">Subnet</span><span class="value">10.10.1.0/24</span></div>
+          <div class="detail-row"><span class="label">Route-Target</span><span class="value">65000:10100</span></div>
+          <div class="detail-row"><span class="label">VNI 10200 / VLAN 200</span><span class="value">SERVERS_B</span></div>
+          <div class="detail-row"><span class="label">Gateway</span><span class="value">10.10.2.1/24</span></div>
+          <div class="detail-row"><span class="label">Subnet</span><span class="value">10.10.2.0/24</span></div>
+          <div class="detail-row"><span class="label">Route-Target</span><span class="value">65000:10200</span></div>
+        </div>
+        <div class="routing-card">
+          <h4>VNI Mappings — DR-West</h4>
+          <div class="detail-row"><span class="label">VNI 10100 / VLAN 100</span><span class="value">SERVERS_DR</span></div>
+          <div class="detail-row"><span class="label">Gateway</span><span class="value">10.30.1.1/24</span></div>
+          <div class="detail-row"><span class="label">Subnet</span><span class="value">10.30.1.0/24</span></div>
+          <div class="detail-row"><span class="label">Route-Target</span><span class="value">65000:10100</span></div>
+        </div>
+        <div class="routing-card">
+          <h4>VTEP Sources (Loopback1)</h4>
+          <div class="detail-row"><span class="label">dc-leaf-1</span><span class="value">10.1.2.11/32</span></div>
+          <div class="detail-row"><span class="label">dc-leaf-2</span><span class="value">10.1.2.12/32</span></div>
+          <div class="detail-row"><span class="label">dr-leaf-1</span><span class="value">10.31.2.1/32</span></div>
+          <div class="detail-row"><span class="label">dr-leaf-2</span><span class="value">10.31.2.2/32</span></div>
+        </div>
+        <div class="routing-card">
+          <h4>Anycast Gateway</h4>
+          <div class="detail-row"><span class="label">Virtual MAC</span><span class="value">00:1c:73:00:00:01</span></div>
+          <div class="detail-row"><span class="label">VNI 10100 DC GW</span><span class="value">10.10.1.1/24</span></div>
+          <div class="detail-row"><span class="label">VNI 10200 DC GW</span><span class="value">10.10.2.1/24</span></div>
+          <div class="detail-row"><span class="label">VNI 10100 DR GW</span><span class="value">10.30.1.1/24</span></div>
+          <div class="detail-row"><span class="label">Shared RT</span><span class="value">VNI 10100 uses same RT across DC/DR</span></div>
+        </div>
+      </div>
+
+      <h2>DR-West — Collapsed EVPN (No Spines)</h2>
+
+      <p>DR site uses a collapsed leaf-to-leaf design. dr-leaf-1 and dr-leaf-2 peer directly via eBGP underlay and iBGP EVPN overlay — no spine layer.</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Session</th><th>Device A</th><th>A IP</th><th>Device B</th><th>B IP</th><th>ASN A</th><th>ASN B</th></tr></thead>
+          <tbody>
+            <tr><td>Underlay eBGP</td><td>dr-leaf-1</td><td><code>10.31.1.0/31</code></td><td>dr-leaf-2</td><td><code>10.31.1.1/31</code></td><td>65201</td><td>65202</td></tr>
+            <tr><td>EVPN Overlay</td><td>dr-leaf-1</td><td><code>10.31.0.1</code> (Lo0)</td><td>dr-leaf-2</td><td><code>10.31.0.2</code> (Lo0)</td><td>65201</td><td>65202</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2>Border Leaf Route Filtering</h2>
+
+      <p>dc-border-1 and dc-border-2 use prefix-lists and route-maps to control which routes are redistributed from connected into BGP. Only DC fabric and server subnets are advertised outbound.</p>
+
+      <div class="code-block">
+        <button class="copy-btn" onclick="copyBlock(this)">Copy</button>
+        <pre>! Applied on dc-border-1 and dc-border-2
+
+ip prefix-list DC-SUMMARIES seq 10 permit 10.1.0.0/16 le 32
+ip prefix-list DC-SUMMARIES seq 20 permit 10.10.0.0/16 le 32
+
+route-map ADVERTISE-DC permit 10
+   match ip address prefix-list DC-SUMMARIES
+
+router bgp {{ asn }}
+   redistribute connected route-map ADVERTISE-DC</pre>
+      </div>
+
+      <div class="callout callout-info">
+        <span class="callout-icon">i</span>
+        <div><strong>Design intent:</strong> Only DC infrastructure (10.1.0.0/16) and server subnets (10.10.0.0/16) leak outward from the fabric. Transit and WAN prefixes are excluded from redistribution.</div>
+      </div>
+
+      <h2>WAN — CE Router Path Selection</h2>
+
+      <p>All three CE routers (dc-ce-1, dr-ce-1, br-ce-1) are dual-homed to sp-pe-1 and sp-pe-2. dc-ce-1 and dr-ce-1 use route-maps to prefer sp-pe-1 as the primary path via local-preference manipulation. br-ce-1 uses equal-cost load balancing.</p>
+
+      <h3>dc-ce-1 and dr-ce-1 — Primary/Secondary Route-Maps</h3>
+
+      <div class="code-block">
+        <button class="copy-btn" onclick="copyBlock(this)">Copy</button>
+        <pre>! dc-ce-1 (Router ID: 172.16.0.101, ASN 65100)
+! dr-ce-1 (Router ID: 172.16.0.102, ASN 65100)
+
+route-map PRIMARY-PE permit 10
+   set local-preference 200
+
+route-map SECONDARY-PE permit 10
+   set local-preference 100
+
+router bgp 65100
+ neighbor &lt;sp-pe-1-ip&gt; remote-as 64500
+ neighbor &lt;sp-pe-1-ip&gt; route-map PRIMARY-PE in    ! local-pref 200 = preferred
+ neighbor &lt;sp-pe-2-ip&gt; remote-as 64500
+ neighbor &lt;sp-pe-2-ip&gt; route-map SECONDARY-PE in   ! local-pref 100 = backup</pre>
+      </div>
+
+      <h3>WAN Peering Table</h3>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>CE Device</th><th>CE IP</th><th>PE Device</th><th>PE IP</th><th>Route-Map (inbound)</th><th>Networks Advertised</th></tr></thead>
+          <tbody>
+            <tr><td>dc-ce-1</td><td><code>172.16.0.0</code></td><td>sp-pe-1</td><td><code>172.16.0.1</code></td><td>PRIMARY-PE (LP 200)</td><td rowspan="2">172.16.0.101/32, 10.99.1.1/31, 10.99.1.3/31</td></tr>
+            <tr><td>dc-ce-1</td><td><code>172.16.0.2</code></td><td>sp-pe-2</td><td><code>172.16.0.3</code></td><td>SECONDARY-PE (LP 100)</td></tr>
+            <tr><td>dr-ce-1</td><td><code>172.16.0.11</code></td><td>sp-pe-1</td><td><code>172.16.0.10</code></td><td>PRIMARY-PE (LP 200)</td><td rowspan="2">172.16.0.102/32, 10.99.1.5/31, 10.99.1.7/31</td></tr>
+            <tr><td>dr-ce-1</td><td><code>172.16.0.13</code></td><td>sp-pe-2</td><td><code>172.16.0.12</code></td><td>SECONDARY-PE (LP 100)</td></tr>
+            <tr><td>br-ce-1</td><td><code>172.16.0.7</code></td><td>sp-pe-1</td><td><code>172.16.0.6</code></td><td>none (ECMP)</td><td rowspan="2">10.20.0.1/32, 10.20.1.0/24</td></tr>
+            <tr><td>br-ce-1</td><td><code>172.16.0.9</code></td><td>sp-pe-2</td><td><code>172.16.0.8</code></td><td>none (ECMP)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2>SP Transport — PE-to-PE</h2>
+
+      <p>sp-pe-1 and sp-pe-2 (both AS 64500) run iBGP between themselves and eBGP to all CE routers. The PE-to-PE link is L2 transport; everything else is L3. <code>no bgp default ipv4-unicast</code> is configured on both PEs.</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>PE</th><th>Router ID</th><th>Neighbor</th><th>Neighbor IP</th><th>Neighbor ASN</th><th>Session Type</th></tr></thead>
+          <tbody>
+            <tr><td rowspan="4">sp-pe-1 (172.16.0.111)</td><td rowspan="4"><code>172.16.0.111</code></td><td>dc-ce-1</td><td><code>172.16.0.0</code></td><td>65100</td><td>eBGP</td></tr>
+            <tr><td>br-ce-1</td><td><code>172.16.0.7</code></td><td>65100</td><td>eBGP</td></tr>
+            <tr><td>dr-ce-1</td><td><code>172.16.0.11</code></td><td>65100</td><td>eBGP</td></tr>
+            <tr><td>sp-pe-2</td><td><code>172.16.0.5</code></td><td>64500</td><td>iBGP</td></tr>
+            <tr><td rowspan="4">sp-pe-2 (172.16.0.112)</td><td rowspan="4"><code>172.16.0.112</code></td><td>dc-ce-1</td><td><code>172.16.0.2</code></td><td>65100</td><td>eBGP</td></tr>
+            <tr><td>br-ce-1</td><td><code>172.16.0.9</code></td><td>65100</td><td>eBGP</td></tr>
+            <tr><td>dr-ce-1</td><td><code>172.16.0.13</code></td><td>65100</td><td>eBGP</td></tr>
+            <tr><td>sp-pe-1</td><td><code>172.16.0.4</code></td><td>64500</td><td>iBGP</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2>Cross-Border Transit Links</h2>
+
+      <p>Traffic between the DC fabric and the WAN traverses the FortiGate firewall pairs. These are not BGP-routed links — the firewalls operate as stateful L3 devices with zone-based policies.</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Segment</th><th>Device A</th><th>A Interface</th><th>A IP</th><th>Device B</th><th>B Interface</th><th>B IP</th></tr></thead>
+          <tbody>
+            <tr><td rowspan="2">DC Border-to-FW</td><td>dc-border-1</td><td>Eth3</td><td><code>10.99.0.0/31</code></td><td>dc-fw-1</td><td>port1</td><td><code>10.99.0.1/31</code></td></tr>
+            <tr><td>dc-border-2</td><td>Eth3</td><td><code>10.99.0.2/31</code></td><td>dc-fw-2</td><td>port1</td><td><code>10.99.0.3/31</code></td></tr>
+            <tr><td rowspan="2">DC FW-to-CE</td><td>dc-fw-1</td><td>port2</td><td><code>10.99.1.0/31</code></td><td>dc-ce-1</td><td>Gi2</td><td><code>10.99.1.1/31</code></td></tr>
+            <tr><td>dc-fw-2</td><td>port2</td><td><code>10.99.1.2/31</code></td><td>dc-ce-1</td><td>Gi3</td><td><code>10.99.1.3/31</code></td></tr>
+            <tr><td rowspan="2">DR Leaf-to-FW</td><td>dr-leaf-1</td><td>Eth2</td><td><code>10.99.0.4/31</code></td><td>dr-fw-1</td><td>port1</td><td><code>10.99.0.5/31</code></td></tr>
+            <tr><td>dr-leaf-2</td><td>Eth2</td><td><code>10.99.0.6/31</code></td><td>dr-fw-2</td><td>port1</td><td><code>10.99.0.7/31</code></td></tr>
+            <tr><td rowspan="2">DR FW-to-CE</td><td>dr-fw-1</td><td>port2</td><td><code>10.99.1.4/31</code></td><td>dr-ce-1</td><td>Gi2</td><td><code>10.99.1.5/31</code></td></tr>
+            <tr><td>dr-fw-2</td><td>port2</td><td><code>10.99.1.6/31</code></td><td>dr-ce-1</td><td>Gi3</td><td><code>10.99.1.7/31</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2>Firewall Zone Policy</h2>
+
+      <div class="routing-grid">
+        <div class="routing-card">
+          <h4>DC Firewalls (dc-fw-1/2)</h4>
+          <div class="detail-row"><span class="label">HA Mode</span><span class="value">Active-Passive (group-id 1)</span></div>
+          <div class="detail-row"><span class="label">Trust Zone</span><span class="value">port1 (dc-trust)</span></div>
+          <div class="detail-row"><span class="label">Untrust Zone</span><span class="value">port2 (wan-untrust)</span></div>
+          <div class="detail-row"><span class="label">Policy 1</span><span class="value">allow-dc-outbound: 443,80,ICMP</span></div>
+          <div class="detail-row"><span class="label">Policy 2</span><span class="value">allow-dc-ssh: TCP/22</span></div>
+          <div class="detail-row"><span class="label">Intra-zone</span><span class="value">allow</span></div>
+          <div class="detail-row"><span class="label">dc-fw-1 Priority</span><span class="value">200 (active)</span></div>
+          <div class="detail-row"><span class="label">dc-fw-2 Priority</span><span class="value">150 (standby)</span></div>
+        </div>
+        <div class="routing-card">
+          <h4>DR Firewalls (dr-fw-1/2)</h4>
+          <div class="detail-row"><span class="label">HA Mode</span><span class="value">Active-Passive (group-id 2)</span></div>
+          <div class="detail-row"><span class="label">Trust Zone</span><span class="value">port1 (dr-trust)</span></div>
+          <div class="detail-row"><span class="label">Untrust Zone</span><span class="value">port2 (dr-untrust)</span></div>
+          <div class="detail-row"><span class="label">Policy 1</span><span class="value">allow-dr-outbound: 443,80,ICMP</span></div>
+          <div class="detail-row"><span class="label">Intra-zone</span><span class="value">allow</span></div>
+          <div class="detail-row"><span class="label">dr-fw-1 Priority</span><span class="value">200 (active)</span></div>
+          <div class="detail-row"><span class="label">dr-fw-2 Priority</span><span class="value">150 (standby)</span></div>
+        </div>
+      </div>
+
+      <h2>Loopback Address Table</h2>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Device</th><th>Loopback0 (Router ID)</th><th>Loopback1 (VTEP)</th><th>Role</th></tr></thead>
+          <tbody>
+            <tr><td>dc-spine-1</td><td><code>10.1.0.1/32</code></td><td>—</td><td>Spine / EVPN RR</td></tr>
+            <tr><td>dc-spine-2</td><td><code>10.1.0.2/32</code></td><td>—</td><td>Spine / EVPN RR</td></tr>
+            <tr><td>dc-leaf-1</td><td><code>10.1.0.11/32</code></td><td><code>10.1.2.11/32</code></td><td>Compute Leaf / VTEP</td></tr>
+            <tr><td>dc-leaf-2</td><td><code>10.1.0.12/32</code></td><td><code>10.1.2.12/32</code></td><td>Compute Leaf / VTEP</td></tr>
+            <tr><td>dc-border-1</td><td><code>10.1.0.13/32</code></td><td>—</td><td>Border Leaf</td></tr>
+            <tr><td>dc-border-2</td><td><code>10.1.0.14/32</code></td><td>—</td><td>Border Leaf</td></tr>
+            <tr><td>dr-leaf-1</td><td><code>10.31.0.1/32</code></td><td><code>10.31.2.1/32</code></td><td>DR Leaf / VTEP</td></tr>
+            <tr><td>dr-leaf-2</td><td><code>10.31.0.2/32</code></td><td><code>10.31.2.2/32</code></td><td>DR Leaf / VTEP</td></tr>
+            <tr><td>sp-pe-1</td><td><code>172.16.0.111/32</code></td><td>—</td><td>SP PE</td></tr>
+            <tr><td>sp-pe-2</td><td><code>172.16.0.112/32</code></td><td>—</td><td>SP PE</td></tr>
+            <tr><td>dc-ce-1</td><td><code>172.16.0.101/32</code></td><td>—</td><td>DC CE</td></tr>
+            <tr><td>dr-ce-1</td><td><code>172.16.0.102/32</code></td><td>—</td><td>DR CE</td></tr>
+            <tr><td>br-ce-1</td><td><code>10.20.0.1/32</code></td><td>—</td><td>Branch CE</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2>Reachability Matrix</h2>
+
+      <p>These are the validated end-to-end host paths. All traverse multiple routing domains (VXLAN fabric, firewall zones, WAN eBGP).</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Source</th><th>Source IP</th><th>Destination</th><th>Dest IP</th><th>Path Description</th></tr></thead>
+          <tbody>
+            <tr><td>dc-host-1</td><td><code>10.10.1.10</code></td><td>dc-host-2</td><td><code>10.10.2.10</code></td><td>Intra-DC via VXLAN (VNI 10100 to VNI 10200)</td></tr>
+            <tr><td>dc-host-1</td><td><code>10.10.1.10</code></td><td>dr-host-1</td><td><code>10.30.1.10</code></td><td>DC fabric → border → FW → CE → WAN → DR CE → DR FW → DR leaf</td></tr>
+            <tr><td>dc-host-2</td><td><code>10.10.2.10</code></td><td>dr-host-1</td><td><code>10.30.1.10</code></td><td>Same as above from VNI 10200</td></tr>
+            <tr><td>br-host-1</td><td><code>10.20.1.10</code></td><td>dc-host-1</td><td><code>10.10.1.10</code></td><td>Branch CE → WAN (dual PE) → DC CE → FW → border → fabric</td></tr>
+            <tr><td>br-host-1</td><td><code>10.20.1.10</code></td><td>dc-host-2</td><td><code>10.10.2.10</code></td><td>Same as above to VNI 10200</td></tr>
+            <tr><td>br-host-1</td><td><code>10.20.1.10</code></td><td>dr-host-1</td><td><code>10.30.1.10</code></td><td>Branch CE → WAN → DR CE → DR FW → DR leaf</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2>Key Routing Design Patterns</h2>
+
+      <ul>
+        <li><strong>Underlay/Overlay split:</strong> eBGP /31 P2P for underlay reachability, separate loopback-based EVPN overlay for MAC/IP advertisement</li>
+        <li><strong>Per-leaf ASN:</strong> Each leaf gets a unique ASN (65001-65004, 65201-65202) enabling eBGP underlay without iBGP full-mesh</li>
+        <li><strong>Anycast gateways:</strong> All leaves share virtual MAC 00:1c:73:00:00:01 — hosts use the same default gateway regardless of which leaf they attach to</li>
+        <li><strong>Collapsed DR:</strong> DR site skips the spine layer — two leaves peer directly, reducing resource usage while maintaining EVPN capability</li>
+        <li><strong>Dual-homed CEs:</strong> Primary/secondary PE selection via route-map local-preference (200 vs 100) — deterministic failover, not random</li>
+        <li><strong>Border route filtering:</strong> Only DC summaries (/16s) are redistributed outward via prefix-list match — prevents transit leaks</li>
+        <li><strong>Cross-site RT sharing:</strong> VNI 10100 uses route-target 65000:10100 on both DC and DR — enables L2 extension across sites when WAN path is available</li>
+        <li><strong>No OSPF, no static routes:</strong> Pure BGP everywhere — one protocol to monitor, one set of show commands, one failure domain per session</li>
+      </ul>
+
+    </div>
+  </div>
+
+  <!-- ==================== BUILD RUNBOOK TAB ==================== -->
+  <div class="tab-content" id="tab-build">
+    <div class="runbook">
+      <h1>Build Runbook</h1>
+      <p class="subtitle">Step-by-step guide to deploying the multi-site EVE-NG AI Infrastructure Lab from scratch.</p>
+
+      <h2>Prerequisites</h2>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Component</th><th>Version / Spec</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td>Hardware</td><td>Dell PowerEdge R640 or equiv.</td><td>Min 64GB RAM, 500GB SSD</td></tr>
+            <tr><td>Proxmox VE</td><td>8.x</td><td>Hypervisor for EVE-NG VM</td></tr>
+            <tr><td>EVE-NG</td><td>Pro or Community</td><td>Pro recommended for API features</td></tr>
+            <tr><td>NetBox</td><td>3.7+</td><td>Source of truth for all network data</td></tr>
+            <tr><td>Python</td><td>3.11+</td><td>venv, pip, pynetbox, Jinja2, Netmiko</td></tr>
+            <tr><td>Git</td><td>latest</td><td>Version control for specs and configs</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout callout-info">
+        <span class="callout-icon">i</span>
+        <div>EVE-NG device images must be pre-staged: <strong>Arista vEOS 4.33.1.1F</strong>, <strong>Cisco C8000v</strong> (17.x), <strong>FortiGate VM</strong> (7.x), <strong>Alpine Linux</strong>. Upload QCOW2 images to EVE-NG before lab creation.</div>
+      </div>
+
+      <h2>Pipeline Overview</h2>
+
+      <p>The pipeline is spec-driven. Data flows one direction: NetBox is the source of truth, everything downstream is generated.</p>
+
+      <div class="code-block">
+        <button class="copy-btn" onclick="copyBlock(this)">Copy</button>
+        <pre>NetBox (SoT) ──&gt; YAML Spec ──&gt; Jinja2 Templates ──&gt; Per-Device Configs
+                                                            │
+                                                            ▼
+                                                     EVE-NG Devices
+                                                            │
+                                                            ▼
+                                              Agent Validates (live vs spec)
+                                                            │
+                                                            ▼
+                                                   Drift → Telegram Alert</pre>
+      </div>
+
+      <h2>Build Phases</h2>
+
+      <div class="phase-header"><div class="phase-num">1</div><div class="phase-title">Environment Setup</div></div>
+
+      <div class="code-block">
+        <button class="copy-btn" onclick="copyBlock(this)">Copy</button>
+        <pre># Clone and set up Python environment
+git clone &lt;repo-url&gt; && cd Eve-NG_Agent
+python3 -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+
+# Configure .env (credentials, NetBox URL, EVE-NG URL, Telegram token)
+cp .env.example .env
+# Edit .env — no credentials hardcoded in code, ever</pre>
+      </div>
+
+      <div class="callout callout-danger">
+        <span class="callout-icon">!</span>
+        <div><strong>Gotcha #17 — Zero hardcoded values.</strong> No IPs, ASNs, credentials, or topology data in code. Everything comes from NetBox, the YAML spec, <code>.env</code>, <code>lab_bootstrap.yaml</code>, or config contexts.</div>
+      </div>
+
+      <div class="phase-header"><div class="phase-num">2</div><div class="phase-title">Generate Spec from NetBox</div></div>
+
+      <div class="code-block">
+        <button class="copy-btn" onclick="copyBlock(this)">Copy</button>
+        <pre>make generate-spec   # NetBox → YAML spec
+make validate        # Validate against JSON Schema</pre>
+      </div>
+
+      <div class="phase-header"><div class="phase-num">3</div><div class="phase-title">Generate Per-Device Configs</div></div>
+
+      <div class="code-block">
+        <button class="copy-btn" onclick="copyBlock(this)">Copy</button>
+        <pre>make generate-configs   # Spec + Jinja2 → per-device configs
+make test               # Validate configs</pre>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Template</th><th>Path</th><th>Devices</th></tr></thead>
+          <tbody>
+            <tr><td>Spine</td><td><code>templates/arista/spine.j2</code></td><td>dc-spine-1, dc-spine-2</td></tr>
+            <tr><td>Compute Leaf</td><td><code>templates/arista/compute_leaf.j2</code></td><td>dc-leaf-1, dc-leaf-2, dr-leaf-1, dr-leaf-2</td></tr>
+            <tr><td>Border Leaf</td><td><code>templates/arista/border_leaf.j2</code></td><td>dc-border-1, dc-border-2</td></tr>
+            <tr><td>CE Router</td><td><code>templates/cisco/ce_router.j2</code></td><td>dc-ce-1, dr-ce-1</td></tr>
+            <tr><td>PE Router</td><td><code>templates/cisco/pe_router.j2</code></td><td>sp-pe-1, sp-pe-2</td></tr>
+            <tr><td>Branch Router</td><td><code>templates/cisco/branch_router.j2</code></td><td>br-ce-1</td></tr>
+            <tr><td>FortiGate HA</td><td><code>templates/fortinet/fortigate_ha.j2</code></td><td>dc-fw-1/2, dr-fw-1/2</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout callout-danger">
+        <span class="callout-icon">!</span>
+        <div><strong>Gotcha #12 — EOS config context bleed.</strong> All Arista templates <strong>must</strong> include explicit <code>exit</code> after every <code>address-family</code> block.</div>
+      </div>
+
+      <div class="phase-header"><div class="phase-num">4</div><div class="phase-title">Create Lab in EVE-NG</div></div>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Platform</th><th>CPU</th><th>RAM</th><th>NICs</th><th>Config Param</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td>Arista vEOS</td><td>2</td><td>4096</td><td>varies</td><td><code>"0"</code></td><td>Supports startup-config injection</td></tr>
+            <tr><td>Cisco C8000v</td><td><strong>4</strong></td><td><strong>8192</strong></td><td><strong>6</strong></td><td><code>"0"</code></td><td>Will not boot with less (#4)</td></tr>
+            <tr><td>FortiGate VM</td><td>2</td><td>2048</td><td>7</td><td><code>"0"</code></td><td>No startup-config injection (#6)</td></tr>
+            <tr><td>Alpine Linux</td><td>1</td><td>512</td><td>2</td><td><code>"0"</code></td><td>Uses e0/e1 not eth0/eth1 (#5)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout callout-danger">
+        <span class="callout-icon">!</span>
+        <div><strong>Gotcha #9 / #21 — FortiGate HA heartbeat port MUST be cabled on initial setup.</strong> dc-fw-1:port3 ↔ dc-fw-2:port3, dr-fw-1:port3 ↔ dr-fw-2:port3.</div>
+      </div>
+
+      <div class="phase-header"><div class="phase-num">5</div><div class="phase-title">FortiGate &amp; Alpine First Boot (Console)</div></div>
+
+      <p>FortiGate and Alpine cannot be bootstrapped via API. Configure management via console first.</p>
+
+      <div class="code-block">
+        <button class="copy-btn" onclick="copyBlock(this)">Copy</button>
+        <pre># FortiGate: set mode static BEFORE set ip (Gotcha #21)
+config system interface
+    edit port6
+        set mode static
+        set ip &lt;mgmt_ip&gt; 255.255.252.0
+        set allowaccess ping https ssh
+    next
+end
+execute cfg save    # CRITICAL: save to NVRAM (Gotcha #18)</pre>
+      </div>
+
+      <div class="phase-header"><div class="phase-num">6</div><div class="phase-title">Push Configs via SSH</div></div>
+
+      <div class="code-block">
+        <button class="copy-btn" onclick="copyBlock(this)">Copy</button>
+        <pre>python -m scripts.push_configs              # All managed devices
+python -m scripts.push_configs --dry-run    # Preview only</pre>
+      </div>
+
+      <div class="callout callout-danger">
+        <span class="callout-icon">!</span>
+        <div><strong>Gotcha #7 — HA config block kills SSH.</strong> Push script must skip <code>config system ha</code> for FortiGate nodes.</div>
+      </div>
+
+      <div class="phase-header"><div class="phase-num">7</div><div class="phase-title">Verify Connectivity &amp; Protocol State</div></div>
+
+      <div class="code-block">
+        <button class="copy-btn" onclick="copyBlock(this)">Copy</button>
+        <pre># Arista: use JSON (Gotcha #15: EOS 4.33 changed text format)
+show ip bgp summary | json
+show bgp evpn summary | json
+show vxlan vtep
+
+# Cisco
+show bgp ipv4 unicast summary
+
+# FortiGate
+get system ha status</pre>
+      </div>
+
+      <div class="phase-header"><div class="phase-num">8</div><div class="phase-title">Agent Deployment &amp; Continuous Validation</div></div>
+
+      <div class="code-block">
+        <button class="copy-btn" onclick="copyBlock(this)">Copy</button>
+        <pre>make agent           # Run all agent skills once
+make agent-monitor   # Run agent every 5 minutes
+make deploy          # Full cycle: generate → push → verify</pre>
+      </div>
+
+      <h2>Key Commands Reference</h2>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Command</th><th>Purpose</th></tr></thead>
+          <tbody>
+            <tr><td><code>make test</code></td><td>Run all pytest tests</td></tr>
+            <tr><td><code>make lint</code></td><td>Run ruff check + ruff format</td></tr>
+            <tr><td><code>make validate</code></td><td>Validate specs against JSON schema</td></tr>
+            <tr><td><code>make generate-spec</code></td><td>NetBox → YAML spec</td></tr>
+            <tr><td><code>make generate-configs</code></td><td>Spec → per-device configs</td></tr>
+            <tr><td><code>make push-configs</code></td><td>Deploy configs via SSH</td></tr>
+            <tr><td><code>make deploy</code></td><td>Full cycle: generate → push → verify</td></tr>
+            <tr><td><code>make agent</code></td><td>Run all agent skills once</td></tr>
+            <tr><td><code>make agent-monitor</code></td><td>Run agent every 5 minutes</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2>Directory Structure</h2>
+
+      <div class="code-block">
+        <button class="copy-btn" onclick="copyBlock(this)">Copy</button>
+        <pre>Eve-NG_Agent/
+├── agent/
+│   ├── runner.py              # Main agent orchestrator
+│   ├── netbox_reconciler.py   # NetBox reconciliation
+│   └── skills/                # fabric_health, branch_connectivity, spec_compliance
+├── configs/generated/         # Rendered per-device configs
+├── scripts/                   # push_configs, run_reachability, chaos_test, diagnose_lab
+├── specs/
+│   ├── schema.json            # JSON Schema for spec validation
+│   └── generated/             # YAML specs from NetBox
+├── templates/
+│   ├── arista/                # spine.j2, compute_leaf.j2, border_leaf.j2
+│   ├── cisco/                 # pe_router.j2, ce_router.j2, branch_router.j2
+│   └── fortinet/              # fortigate_ha.j2
+├── batfish/                   # Batfish snapshots for offline validation
+├── tests/                     # unit + integration
+├── logs/                      # GAIT audit trail
+├── mcp_server.py              # MCP server (5 async tools)
+├── Makefile
+└── CLAUDE.md</pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== TROUBLESHOOTING TAB ==================== -->
+  <div class="tab-content" id="tab-troubleshoot">
+    <div class="runbook">
+      <h1>Troubleshooting Runbook</h1>
+      <p class="subtitle">21 confirmed gotchas from this build, organized by category and severity. Every entry here was hit in production.</p>
+
+      <div class="search-bar">
+        <input type="text" id="tsSearch" placeholder="Search issues (e.g. BGP, VXLAN, FortiGate, API, Netmiko...)">
+      </div>
+
+      <h2>EVE-NG Platform</h2>
+
+      <div class="ts-section" data-keywords="eve-ng api config boot startup death qcow2 parameter mode selector">
+        <div class="ts-header" onclick="toggleTs(this)">
+          <span class="ts-severity sev-critical">CRITICAL</span>
+          <span class="ts-title">#1 — Config parameter causes boot death</span>
+          <span class="ts-chevron">&#9654;</span>
+        </div>
+        <div class="ts-body">
+          <h4>Symptom</h4><p>Device fails to boot after API creation.</p>
+          <h4>Root Cause</h4><p>Config param must be <code>"0"</code> or <code>"1"</code>. Setting to base64/text/<code>"none"</code> kills the node.</p>
+          <h4>Fix</h4><ul><li>Always <code>"config": "0"</code>. Startup configs injected as files.</li></ul>
+        </div>
+      </div>
+
+      <div class="ts-section" data-keywords="eve-ng pro api path url unl extension 404 lab">
+        <div class="ts-header" onclick="toggleTs(this)">
+          <span class="ts-severity sev-high">HIGH</span>
+          <span class="ts-title">#2 — EVE-NG Pro API paths need .unl extension</span>
+          <span class="ts-chevron">&#9654;</span>
+        </div>
+        <div class="ts-body">
+          <h4>Fix</h4><ul><li>Include <code>.unl</code> in paths: <code>/api/v2/labs/AI-Infra-Lab.unl/nodes</code></li><li>Include leading <code>/</code></li></ul>
+        </div>
+      </div>
+
+      <div class="ts-section" data-keywords="eve-ng pro stop api 400 bad request start restart node">
+        <div class="ts-header" onclick="toggleTs(this)">
+          <span class="ts-severity sev-high">HIGH</span>
+          <span class="ts-title">#3 — EVE-NG Pro stop API returns 400</span>
+          <span class="ts-chevron">&#9654;</span>
+        </div>
+        <div class="ts-body">
+          <h4>Workaround</h4><ul><li>Use web UI to stop, or call <code>start</code> on running node (restarts it)</li></ul>
+        </div>
+      </div>
+
+      <div class="ts-section" data-keywords="c8000v cisco cpu ram resources boot crash">
+        <div class="ts-header" onclick="toggleTs(this)">
+          <span class="ts-severity sev-high">HIGH</span>
+          <span class="ts-title">#4 — C8000v needs 4 CPU / 8GB RAM minimum</span>
+          <span class="ts-chevron">&#9654;</span>
+        </div>
+        <div class="ts-body">
+          <h4>Required</h4><ul><li><code>cpu=4, ram=8192, ethernet=6</code>. Gi5 = management. 5 nodes = 20 vCPUs + 40GB.</li></ul>
+        </div>
+      </div>
+
+      <div class="ts-section" data-keywords="alpine interface naming eth0 e0 e1 linux host">
+        <div class="ts-header" onclick="toggleTs(this)">
+          <span class="ts-severity sev-medium">MEDIUM</span>
+          <span class="ts-title">#5 — Alpine Linux uses e0/e1, not eth0/eth1</span>
+          <span class="ts-chevron">&#9654;</span>
+        </div>
+        <div class="ts-body">
+          <h4>Fix</h4><ul><li>Use <code>e0</code>/<code>e1</code> in all Alpine configs. Verify with <code>ip link show</code>.</li></ul>
+        </div>
+      </div>
+
+      <h2>FortiGate Specific</h2>
+
+      <div class="ts-section" data-keywords="fortigate bootstrap console startup config injection alpine">
+        <div class="ts-header" onclick="toggleTs(this)">
+          <span class="ts-severity sev-high">HIGH</span>
+          <span class="ts-title">#6 — No startup-config injection for FortiGate / Alpine</span>
+          <span class="ts-chevron">&#9654;</span>
+        </div>
+        <div class="ts-body">
+          <h4>Fix</h4><ul><li>Configure management via console on first boot. One-time step.</li></ul>
+        </div>
+      </div>
+
+      <div class="ts-section" data-keywords="fortigate ha ssh kills session mode a-p console">
+        <div class="ts-header" onclick="toggleTs(this)">
+          <span class="ts-severity sev-critical">CRITICAL</span>
+          <span class="ts-title">#7 — Pushing HA config via SSH kills the session</span>
+          <span class="ts-chevron">&#9654;</span>
+        </div>
+        <div class="ts-body">
+          <h4>Fix</h4><ul><li>HA config via console only. Push script must skip <code>config system ha</code> block.</li></ul>
+        </div>
+      </div>
+
+      <div class="ts-section" data-keywords="fortigate ha standby data port 0.0.0.0 drift false positive">
+        <div class="ts-header" onclick="toggleTs(this)">
+          <span class="ts-severity sev-critical">CRITICAL</span>
+          <span class="ts-title">#8 — Standby FortiGate data ports show 0.0.0.0</span>
+          <span class="ts-chevron">&#9654;</span>
+        </div>
+        <div class="ts-body">
+          <h4>This is normal.</h4><p>Only active unit holds data IPs. Skip data-plane IP checks on standby.</p>
+        </div>
+      </div>
+
+      <div class="ts-section" data-keywords="fortigate ha heartbeat port3 cable standalone primary">
+        <div class="ts-header" onclick="toggleTs(this)">
+          <span class="ts-severity sev-critical">CRITICAL</span>
+          <span class="ts-title">#9 — HA heartbeat not cabled — both units go standalone</span>
+          <span class="ts-chevron">&#9654;</span>
+        </div>
+        <div class="ts-body">
+          <h4>Fix</h4><ul><li>Cable port3 between HA peers in EVE-NG. Add to NetBox for spec consistency.</li></ul>
+        </div>
+      </div>
+
+      <div class="ts-section" data-keywords="fortigate ha management ip stolen ha-mgmt-status">
+        <div class="ts-header" onclick="toggleTs(this)">
+          <span class="ts-severity sev-high">HIGH</span>
+          <span class="ts-title">#10 — HA negotiation steals management IP</span>
+          <span class="ts-chevron">&#9654;</span>
+        </div>
+        <div class="ts-body">
+          <h4>Fix</h4><ul><li>Configure <code>ha-mgmt-status enable</code> + <code>ha-mgmt-interfaces</code> BEFORE enabling HA mode.</li></ul>
+        </div>
+      </div>
+
+      <div class="ts-section" data-keywords="fortigate netmiko driver device_type fortinet timeout">
+        <div class="ts-header" onclick="toggleTs(this)">
+          <span class="ts-severity sev-high">HIGH</span>
+          <span class="ts-title">#11 — FortiGate Netmiko driver quirks</span>
+          <span class="ts-chevron">&#9654;</span>
+        </div>
+        <div class="ts-body">
+          <h4>Settings</h4><ul><li><code>device_type='fortinet'</code>, <code>timeout=30</code>, use <code>write_channel</code>, never call <code>enable()</code></li></ul>
+        </div>
+      </div>
+
+      <h2>Arista EOS</h2>
+
+      <div class="ts-section" data-keywords="eos config context bleed address-family exit template">
+        <div class="ts-header" onclick="toggleTs(this)">
+          <span class="ts-severity sev-critical">CRITICAL</span>
+          <span class="ts-title">#12 — Config context bleed — overlay neighbors in wrong address-family</span>
+          <span class="ts-chevron">&#9654;</span>
+        </div>
+        <div class="ts-body">
+          <h4>Fix</h4><ul><li>All templates must include <code>exit</code> after every address-family block. Netmiko strips <code>!</code> separators.</li></ul>
+        </div>
+      </div>
+
+      <div class="ts-section" data-keywords="eos write memory save running config reboot lost">
+        <div class="ts-header" onclick="toggleTs(this)">
+          <span class="ts-severity sev-critical">CRITICAL</span>
+          <span class="ts-title">#13 — EOS config lost on reboot — missing write memory</span>
+          <span class="ts-chevron">&#9654;</span>
+        </div>
+        <div class="ts-body">
+          <h4>Fix</h4><ul><li><code>write memory</code> required for ALL vendors after push, not just Cisco.</li></ul>
+        </div>
+      </div>
+
+      <div class="ts-section" data-keywords="eos enable mode privileged exec secret password">
+        <div class="ts-header" onclick="toggleTs(this)">
+          <span class="ts-severity sev-high">HIGH</span>
+          <span class="ts-title">#14 — EOS show commands fail without enable mode</span>
+          <span class="ts-chevron">&#9654;</span>
+        </div>
+        <div class="ts-body">
+          <h4>Fix</h4><ul><li>Set <code>secret=password</code> and call <code>conn.enable()</code> before show commands.</li></ul>
+        </div>
+      </div>
+
+      <div class="ts-section" data-keywords="eos 4.33 bgp summary format description column parser">
+        <div class="ts-header" onclick="toggleTs(this)">
+          <span class="ts-severity sev-high">HIGH</span>
+          <span class="ts-title">#15 — EOS 4.33 changed BGP summary output format</span>
+          <span class="ts-chevron">&#9654;</span>
+        </div>
+        <div class="ts-body">
+          <h4>Fix</h4><ul><li>Use <code>show ip bgp summary | json</code>. Never rely on positional column parsing.</li></ul>
+        </div>
+      </div>
+
+      <h2>Cisco IOS-XE</h2>
+
+      <div class="ts-section" data-keywords="ios-xe show ip interface brief cidr prefix length mask">
+        <div class="ts-header" onclick="toggleTs(this)">
+          <span class="ts-severity sev-medium">MEDIUM</span>
+          <span class="ts-title">#16 — IOS-XE show ip interface brief omits prefix length</span>
+          <span class="ts-chevron">&#9654;</span>
+        </div>
+        <div class="ts-body">
+          <h4>Fix</h4><ul><li>Strip mask from spec value for comparison, or use pyATS structured parsers.</li></ul>
+        </div>
+      </div>
+
+      <h2>Agent & Validation</h2>
+
+      <div class="ts-section" data-keywords="hardcoded values ips asns credentials netbox spec env">
+        <div class="ts-header" onclick="toggleTs(this)">
+          <span class="ts-severity sev-high">HIGH</span>
+          <span class="ts-title">#17 — No hardcoded values in runtime code</span>
+          <span class="ts-chevron">&#9654;</span>
+        </div>
+        <div class="ts-body">
+          <h4>Valid Sources</h4><ul><li>NetBox, YAML spec, <code>.env</code>, <code>lab_bootstrap.yaml</code>, config contexts</li></ul>
+        </div>
+      </div>
+
+      <div class="ts-section" data-keywords="anti-hallucination verification validation gaming false pass">
+        <div class="ts-header" onclick="toggleTs(this)">
+          <span class="ts-severity sev-critical">CRITICAL</span>
+          <span class="ts-title">Anti-hallucination — agent self-validates false pass</span>
+          <span class="ts-chevron">&#9654;</span>
+        </div>
+        <div class="ts-body">
+          <h4>Defenses</h4>
+          <ul>
+            <li>Cross-reference control plane vs data plane</li>
+            <li>Use structured data only (JSON, pyATS, gNMI)</li>
+            <li>If <code>diagnose_lab.py</code> disagrees with agent, the script wins</li>
+            <li>GAIT audit logs raw device output</li>
+          </ul>
+        </div>
+      </div>
+
+      <h2>BGP / Routing</h2>
+
+      <div class="ts-section" data-keywords="bgp neighbor asn mismatch idle active ebgp underlay">
+        <div class="ts-header" onclick="toggleTs(this)">
+          <span class="ts-severity sev-critical">CRITICAL</span>
+          <span class="ts-title">BGP neighbors stuck in Idle/Active — ASN mismatch</span>
+          <span class="ts-chevron">&#9654;</span>
+        </div>
+        <div class="ts-body">
+          <h4>Common Causes</h4>
+          <ul>
+            <li>ASN mismatch: verify <code>remote-as</code> matches neighbor's local AS</li>
+            <li>Source interface wrong: underlay on P2P, overlay on loopbacks</li>
+            <li>Config context bleed (#12)</li>
+          </ul>
+          <h4>Anti-Hallucination</h4><p>Cross-validate both sides of every peering.</p>
+        </div>
+      </div>
+
+      <div class="ts-section" data-keywords="ibgp evpn overlay route reflector send-community">
+        <div class="ts-header" onclick="toggleTs(this)">
+          <span class="ts-severity sev-high">HIGH</span>
+          <span class="ts-title">EVPN routes not exchanged — overlay misconfigured</span>
+          <span class="ts-chevron">&#9654;</span>
+        </div>
+        <div class="ts-body">
+          <h4>Common Causes</h4>
+          <ul>
+            <li>EVPN on wrong BGP session (should be overlay, not underlay)</li>
+            <li>Missing route-reflector-client on spines</li>
+            <li>Update-source not Loopback0</li>
+            <li>Missing send-community extended</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="ts-section" data-keywords="wan transit pe ce dual-homed route-map local-preference primary secondary">
+        <div class="ts-header" onclick="toggleTs(this)">
+          <span class="ts-severity sev-high">HIGH</span>
+          <span class="ts-title">WAN transit — CE not learning routes from both PEs</span>
+          <span class="ts-chevron">&#9654;</span>
+        </div>
+        <div class="ts-body">
+          <h4>Debug</h4>
+          <ul>
+            <li>Verify both PE sessions up: <code>show ip bgp</code></li>
+            <li>Check route-maps: <code>show route-map PRIMARY-PE</code></li>
+            <li>Verify <code>allowas-in</code> if CE's own ASN appears in path</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="ts-section" data-keywords="border leaf prefix-list route-map advertise-dc redistribute connected">
+        <div class="ts-header" onclick="toggleTs(this)">
+          <span class="ts-severity sev-high">HIGH</span>
+          <span class="ts-title">Border leaf not advertising DC routes — missing route-map</span>
+          <span class="ts-chevron">&#9654;</span>
+        </div>
+        <div class="ts-body">
+          <h4>Debug</h4>
+          <ul>
+            <li><code>show ip prefix-list DC-SUMMARIES</code></li>
+            <li><code>show route-map ADVERTISE-DC</code></li>
+          </ul>
+          <h4>Fix</h4><p>Both borders need prefix-list DC-SUMMARIES (10.1.0.0/16 le 32, 10.10.0.0/16 le 32) and route-map ADVERTISE-DC matching it on redistribute connected.</p>
+        </div>
+      </div>
+
+      <h2>VXLAN / EVPN Data Plane</h2>
+
+      <div class="ts-section" data-keywords="vxlan vtep reachability vni tunnel ping loopback mtu">
+        <div class="ts-header" onclick="toggleTs(this)">
+          <span class="ts-severity sev-critical">CRITICAL</span>
+          <span class="ts-title">VXLAN tunnel down — VTEPs can't reach each other</span>
+          <span class="ts-chevron">&#9654;</span>
+        </div>
+        <div class="ts-body">
+          <h4>Debug</h4><ul><li><code>show vxlan vtep</code>, <code>ping &lt;vtep&gt; source lo1</code>, <code>show interface vxlan1</code></li></ul>
+          <h4>Common Causes</h4><ul><li>Loopback1 not advertised in eBGP</li><li>VNI-VLAN mismatch across leaves</li><li>MTU too low (VXLAN adds 50 bytes)</li></ul>
+        </div>
+      </div>
+
+      <div class="ts-section" data-keywords="vni vlan mapping anycast gateway mac inconsistent">
+        <div class="ts-header" onclick="toggleTs(this)">
+          <span class="ts-severity sev-high">HIGH</span>
+          <span class="ts-title">VNI-to-VLAN mapping inconsistent across leaves</span>
+          <span class="ts-chevron">&#9654;</span>
+        </div>
+        <div class="ts-body">
+          <h4>Fix</h4><ul><li>VNI 10100 → same VLAN on all leaves</li><li>Anycast MAC (00:1c:73:00:00:01) and GW IP must match</li></ul>
+        </div>
+      </div>
+
+      <h2>FortiGate HA Compound Failures</h2>
+
+      <div class="ts-section" data-keywords="fortigate ha heartbeat port3 cable management dhcp mode static compound cascade">
+        <div class="ts-header" onclick="toggleTs(this)">
+          <span class="ts-severity sev-critical">CRITICAL</span>
+          <span class="ts-title">#21 — FortiGate HA cascade: heartbeat + ha-mgmt + DHCP mode</span>
+          <span class="ts-chevron">&#9654;</span>
+        </div>
+        <div class="ts-body">
+          <h4>Three compounding issues:</h4>
+          <ol>
+            <li>port3 heartbeat not cabled → HA never forms</li>
+            <li><code>ha-mgmt-status</code> not active → standby loses management</li>
+            <li><code>set mode static</code> missing → IPs silently ignored</li>
+          </ol>
+          <h4>Fix</h4>
+          <ul>
+            <li>Cable heartbeat (port3)</li>
+            <li>Add ha-mgmt-status to HA config</li>
+            <li>Add <code>set mode static</code> before all <code>set ip</code> commands</li>
+          </ul>
+        </div>
+      </div>
+
+      <h2>FortiGate Management / EVE-NG Node Lifecycle</h2>
+
+      <div class="ts-section" data-keywords="fortigate management unreachable port6 restart nvram cfg save sendto failed">
+        <div class="ts-header" onclick="toggleTs(this)">
+          <span class="ts-severity sev-critical">CRITICAL</span>
+          <span class="ts-title">#18 — FortiGate management unreachable after node restart</span>
+          <span class="ts-chevron">&#9654;</span>
+        </div>
+        <div class="ts-body">
+          <h4>Causes</h4><ul><li>port6 IP not saved to NVRAM</li><li>ha-mgmt-status blocks port6 without working HA cluster</li></ul>
+          <h4>Fix</h4><ul><li>Disable ha-mgmt-status first, set IP, <code>execute cfg save</code></li></ul>
+        </div>
+      </div>
+
+      <div class="ts-section" data-keywords="eve-ng systemd stale qemu lock file daemon-reload force stop">
+        <div class="ts-header" onclick="toggleTs(this)">
+          <span class="ts-severity sev-high">HIGH</span>
+          <span class="ts-title">#19 — Stale systemd units after force-stop</span>
+          <span class="ts-chevron">&#9654;</span>
+        </div>
+        <div class="ts-body">
+          <h4>Fix</h4><ul><li><code>systemctl daemon-reload</code>, remove lock files, restart via API</li></ul>
+        </div>
+      </div>
+
+      <div class="ts-section" data-keywords="eve-ng arch attribute x86_64 qemu 80015 evengsdk">
+        <div class="ts-header" onclick="toggleTs(this)">
+          <span class="ts-severity sev-high">HIGH</span>
+          <span class="ts-title">#20 — Missing arch attribute causes QEMU start failure</span>
+          <span class="ts-chevron">&#9654;</span>
+        </div>
+        <div class="ts-body">
+          <h4>Fix</h4><ul><li>Add <code>arch="x86_64"</code> to .unl file or recreate via web UI</li></ul>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<!-- Prompt Output Bar -->
+<div class="prompt-output" id="promptOutput">
+  <span class="prompt-text" id="promptText"></span>
+  <button class="prompt-copy" id="promptCopy" onclick="copyPrompt()">Copy</button>
+</div>
+
+<script>
+// ==========================================
+// TAB NAVIGATION
+// ==========================================
+const tabs = document.querySelectorAll('.nav-tab');
+const contents = document.querySelectorAll('.tab-content');
+
+tabs.forEach(tab => {
+  tab.addEventListener('click', () => {
+    tabs.forEach(t => t.classList.remove('active'));
+    contents.forEach(c => c.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+  });
+});
+
+// ==========================================
+// TOPOLOGY DATA
+// ==========================================
+const nodes = [
+  // DC-East Fabric
+  { id: 'dc-spine-1', x: 320, y: 110, vendor: 'arista', label: 'dc-spine-1', sub: 'AS 65000 · RR', site: 'dc', boundary: 'managed', asn: 65000, role: 'Spine / iBGP EVPN RR', loopback: '10.1.0.1/32', interfaces: ['Eth1→dc-leaf-1 (10.1.1.0/31)', 'Eth2→dc-leaf-2 (10.1.1.2/31)', 'Eth3→dc-border-1 (10.1.1.4/31)', 'Eth4→dc-border-2 (10.1.1.6/31)'] },
+  { id: 'dc-spine-2', x: 520, y: 110, vendor: 'arista', label: 'dc-spine-2', sub: 'AS 65000 · RR', site: 'dc', boundary: 'managed', asn: 65000, role: 'Spine / iBGP EVPN RR', loopback: '10.1.0.2/32', interfaces: ['Eth1→dc-leaf-1 (10.1.1.8/31)', 'Eth2→dc-leaf-2 (10.1.1.10/31)', 'Eth3→dc-border-1 (10.1.1.12/31)', 'Eth4→dc-border-2 (10.1.1.14/31)'] },
+  { id: 'dc-leaf-1', x: 200, y: 230, vendor: 'arista', label: 'dc-leaf-1', sub: 'AS 65001 · VNI 10100/10200', site: 'dc', boundary: 'managed', asn: 65001, role: 'Compute Leaf / VTEP', loopback: '10.1.0.11/32', vtep: '10.1.2.11/32', interfaces: ['Eth1→dc-spine-1 (10.1.1.1/31)', 'Eth2→dc-spine-2 (10.1.1.9/31)', 'Eth3→dc-host-1 (VLAN 100)'] },
+  { id: 'dc-leaf-2', x: 380, y: 230, vendor: 'arista', label: 'dc-leaf-2', sub: 'AS 65002 · VNI 10100/10200', site: 'dc', boundary: 'managed', asn: 65002, role: 'Compute Leaf / VTEP', loopback: '10.1.0.12/32', vtep: '10.1.2.12/32', interfaces: ['Eth1→dc-spine-1 (10.1.1.3/31)', 'Eth2→dc-spine-2 (10.1.1.11/31)', 'Eth3→dc-host-2 (VLAN 200)'] },
+  { id: 'dc-border-1', x: 560, y: 230, vendor: 'arista', label: 'dc-border-1', sub: 'AS 65003', site: 'dc', boundary: 'managed', asn: 65003, role: 'Border Leaf', loopback: '10.1.0.13/32', interfaces: ['Eth1→dc-spine-1 (10.1.1.5/31)', 'Eth2→dc-spine-2 (10.1.1.13/31)', 'Eth3→dc-fw-1 (10.99.0.0/31)'], routeMap: 'ADVERTISE-DC (prefix-list DC-SUMMARIES)' },
+  { id: 'dc-border-2', x: 740, y: 230, vendor: 'arista', label: 'dc-border-2', sub: 'AS 65004', site: 'dc', boundary: 'managed', asn: 65004, role: 'Border Leaf', loopback: '10.1.0.14/32', interfaces: ['Eth1→dc-spine-1 (10.1.1.7/31)', 'Eth2→dc-spine-2 (10.1.1.15/31)', 'Eth3→dc-fw-2 (10.99.0.2/31)'], routeMap: 'ADVERTISE-DC (prefix-list DC-SUMMARIES)' },
+  { id: 'dc-host-1', x: 200, y: 350, vendor: 'alpine', label: 'dc-host-1', sub: '10.10.1.10', site: 'dc', boundary: 'managed', role: 'Test Host (VNI 10100)', interfaces: ['eth0→dc-leaf-1 (10.10.1.10/24)'] },
+  { id: 'dc-host-2', x: 380, y: 350, vendor: 'alpine', label: 'dc-host-2', sub: '10.10.2.10', site: 'dc', boundary: 'managed', role: 'Test Host (VNI 10200)', interfaces: ['eth0→dc-leaf-2 (10.10.2.10/24)'] },
+
+  // DC Security
+  { id: 'dc-fw-1', x: 600, y: 500, vendor: 'fortinet', label: 'dc-fw-1', sub: 'Active · group-id 1', site: 'dc-sec', boundary: 'managed', role: 'FortiGate HA Active (priority 200)', interfaces: ['port1→dc-border-1 (10.99.0.1/31)', 'port2→dc-ce-1 (10.99.1.0/31)', 'port3→dc-fw-2 (HA heartbeat)'], zones: 'dc-trust (port1) → wan-untrust (port2)' },
+  { id: 'dc-fw-2', x: 780, y: 500, vendor: 'fortinet', label: 'dc-fw-2', sub: 'Standby · group-id 1', site: 'dc-sec', boundary: 'managed', role: 'FortiGate HA Standby (priority 150)', interfaces: ['port1→dc-border-2 (10.99.0.3/31)', 'port2→dc-ce-1 (10.99.1.2/31)', 'port3→dc-fw-1 (HA heartbeat)'], zones: 'dc-trust (port1) → wan-untrust (port2)' },
+  { id: 'dc-ce-1', x: 690, y: 620, vendor: 'cisco', label: 'dc-ce-1', sub: 'AS 65100', site: 'dc-sec', boundary: 'managed', asn: 65100, role: 'CE Router (dual-homed)', loopback: '172.16.0.101/32', interfaces: ['Gi1→sp-pe-1 (172.16.0.0/31)', 'Gi2→dc-fw-1 (10.99.1.1/31)', 'Gi3→dc-fw-2 (10.99.1.3/31)', 'Gi4→sp-pe-2 (172.16.0.2/31)'], routeMap: 'PRIMARY-PE (LP 200) / SECONDARY-PE (LP 100)' },
+
+  // WAN / SP
+  { id: 'sp-pe-1', x: 520, y: 760, vendor: 'cisco', label: 'sp-pe-1', sub: 'AS 64500', site: 'wan', boundary: 'excluded', asn: 64500, role: 'SP PE Router', loopback: '172.16.0.111/32', interfaces: ['Gi1→dc-ce-1 (172.16.0.1/31)', 'Gi2→sp-pe-2 (172.16.0.4/31)', 'Gi3→br-ce-1 (172.16.0.6/31)', 'Gi4→dr-ce-1 (172.16.0.10/31)'] },
+  { id: 'sp-pe-2', x: 740, y: 760, vendor: 'cisco', label: 'sp-pe-2', sub: 'AS 64500', site: 'wan', boundary: 'excluded', asn: 64500, role: 'SP PE Router', loopback: '172.16.0.112/32', interfaces: ['Gi1→dc-ce-1 (172.16.0.3/31)', 'Gi2→sp-pe-1 (172.16.0.5/31)', 'Gi3→br-ce-1 (172.16.0.8/31)', 'Gi4→dr-ce-1 (172.16.0.12/31)'] },
+
+  // Branch-01
+  { id: 'br-ce-1', x: 260, y: 860, vendor: 'cisco', label: 'br-ce-1', sub: 'AS 65100', site: 'branch', boundary: 'managed', asn: 65100, role: 'Branch CE (dual-homed, ECMP)', loopback: '10.20.0.1/32', interfaces: ['Gi1→sp-pe-1 (172.16.0.7/31)', 'Gi2→sp-pe-2 (172.16.0.9/31)', 'Gi3→br-host-1 (10.20.1.1/24)'] },
+  { id: 'br-host-1', x: 260, y: 970, vendor: 'alpine', label: 'br-host-1', sub: '10.20.1.10', site: 'branch', boundary: 'managed', role: 'Branch Test Host', interfaces: ['eth0→br-ce-1 (10.20.1.10/24)'] },
+
+  // DR-West
+  { id: 'dr-host-1', x: 1200, y: 110, vendor: 'alpine', label: 'dr-host-1', sub: '10.30.1.10', site: 'dr', boundary: 'managed', role: 'DR Test Host (VNI 10100)', interfaces: ['eth0→dr-leaf-1 (10.30.1.10/24)'] },
+  { id: 'dr-leaf-1', x: 1120, y: 230, vendor: 'arista', label: 'dr-leaf-1', sub: 'AS 65201', site: 'dr', boundary: 'managed', asn: 65201, role: 'DR Leaf (collapsed EVPN)', loopback: '10.31.0.1/32', vtep: '10.31.2.1/32', interfaces: ['Eth1→dr-leaf-2 (10.31.1.0/31)', 'Eth2→dr-fw-1 (10.99.0.4/31)', 'Eth3→dr-host-1 (VLAN 100)'] },
+  { id: 'dr-leaf-2', x: 1320, y: 230, vendor: 'arista', label: 'dr-leaf-2', sub: 'AS 65202', site: 'dr', boundary: 'managed', asn: 65202, role: 'DR Leaf (collapsed EVPN)', loopback: '10.31.0.2/32', vtep: '10.31.2.2/32', interfaces: ['Eth1→dr-leaf-1 (10.31.1.1/31)', 'Eth2→dr-fw-2 (10.99.0.6/31)'] },
+  { id: 'dr-fw-1', x: 1120, y: 380, vendor: 'fortinet', label: 'dr-fw-1', sub: 'Active · group-id 2', site: 'dr', boundary: 'managed', role: 'FortiGate HA Active (priority 200)', interfaces: ['port1→dr-leaf-1 (10.99.0.5/31)', 'port2→dr-ce-1 (10.99.1.4/31)', 'port3→dr-fw-2 (HA heartbeat)'], zones: 'dr-trust (port1) → dr-untrust (port2)' },
+  { id: 'dr-fw-2', x: 1320, y: 380, vendor: 'fortinet', label: 'dr-fw-2', sub: 'Standby · group-id 2', site: 'dr', boundary: 'managed', role: 'FortiGate HA Standby (priority 150)', interfaces: ['port1→dr-leaf-2 (10.99.0.7/31)', 'port2→dr-ce-1 (10.99.1.6/31)', 'port3→dr-fw-1 (HA heartbeat)'], zones: 'dr-trust (port1) → dr-untrust (port2)' },
+  { id: 'dr-ce-1', x: 1220, y: 530, vendor: 'cisco', label: 'dr-ce-1', sub: 'AS 65100', site: 'dr', boundary: 'managed', asn: 65100, role: 'DR CE Router (dual-homed)', loopback: '172.16.0.102/32', interfaces: ['Gi1→sp-pe-1 (172.16.0.11/31)', 'Gi2→dr-fw-1 (10.99.1.5/31)', 'Gi3→dr-fw-2 (10.99.1.7/31)', 'Gi4→sp-pe-2 (172.16.0.13/31)'], routeMap: 'PRIMARY-PE (LP 200) / SECONDARY-PE (LP 100)' },
+];
+
+const links = [
+  // DC underlay (eBGP)
+  { from: 'dc-spine-1', to: 'dc-leaf-1', flow: ['underlay'] },
+  { from: 'dc-spine-1', to: 'dc-leaf-2', flow: ['underlay'] },
+  { from: 'dc-spine-1', to: 'dc-border-1', flow: ['underlay'] },
+  { from: 'dc-spine-1', to: 'dc-border-2', flow: ['underlay'] },
+  { from: 'dc-spine-2', to: 'dc-leaf-1', flow: ['underlay'] },
+  { from: 'dc-spine-2', to: 'dc-leaf-2', flow: ['underlay'] },
+  { from: 'dc-spine-2', to: 'dc-border-1', flow: ['underlay'] },
+  { from: 'dc-spine-2', to: 'dc-border-2', flow: ['underlay'] },
+  // DC overlay (iBGP EVPN)
+  { from: 'dc-spine-1', to: 'dc-leaf-1', flow: ['overlay'], overlay: true },
+  { from: 'dc-spine-1', to: 'dc-leaf-2', flow: ['overlay'], overlay: true },
+  { from: 'dc-spine-1', to: 'dc-border-1', flow: ['overlay'], overlay: true },
+  { from: 'dc-spine-1', to: 'dc-border-2', flow: ['overlay'], overlay: true },
+  { from: 'dc-spine-2', to: 'dc-leaf-1', flow: ['overlay'], overlay: true },
+  { from: 'dc-spine-2', to: 'dc-leaf-2', flow: ['overlay'], overlay: true },
+  { from: 'dc-spine-2', to: 'dc-border-1', flow: ['overlay'], overlay: true },
+  { from: 'dc-spine-2', to: 'dc-border-2', flow: ['overlay'], overlay: true },
+  // Host access
+  { from: 'dc-host-1', to: 'dc-leaf-1', flow: ['vxlan'] },
+  { from: 'dc-host-2', to: 'dc-leaf-2', flow: ['vxlan'] },
+  // DC to FW
+  { from: 'dc-border-1', to: 'dc-fw-1', flow: ['ha'] },
+  { from: 'dc-border-2', to: 'dc-fw-2', flow: ['ha'] },
+  { from: 'dc-fw-1', to: 'dc-fw-2', flow: ['ha'], haLink: true },
+  { from: 'dc-fw-1', to: 'dc-ce-1', flow: ['wan'] },
+  { from: 'dc-fw-2', to: 'dc-ce-1', flow: ['wan'] },
+  // WAN
+  { from: 'dc-ce-1', to: 'sp-pe-1', flow: ['wan'] },
+  { from: 'dc-ce-1', to: 'sp-pe-2', flow: ['wan'] },
+  { from: 'sp-pe-1', to: 'sp-pe-2', flow: ['wan'], l2Transport: true },
+  { from: 'sp-pe-1', to: 'br-ce-1', flow: ['wan'] },
+  { from: 'sp-pe-2', to: 'br-ce-1', flow: ['wan'] },
+  { from: 'sp-pe-1', to: 'dr-ce-1', flow: ['wan'] },
+  { from: 'sp-pe-2', to: 'dr-ce-1', flow: ['wan'] },
+  // Branch
+  { from: 'br-ce-1', to: 'br-host-1', flow: ['vxlan'] },
+  // DR
+  { from: 'dr-leaf-1', to: 'dr-leaf-2', flow: ['underlay', 'overlay'] },
+  { from: 'dr-leaf-1', to: 'dr-fw-1', flow: ['ha'] },
+  { from: 'dr-leaf-2', to: 'dr-fw-2', flow: ['ha'] },
+  { from: 'dr-fw-1', to: 'dr-fw-2', flow: ['ha'], haLink: true },
+  { from: 'dr-fw-1', to: 'dr-ce-1', flow: ['wan'] },
+  { from: 'dr-fw-2', to: 'dr-ce-1', flow: ['wan'] },
+  { from: 'dr-leaf-1', to: 'dr-host-1', flow: ['vxlan'] },
+];
+
+const sites = [
+  { id: 'dc', label: 'DC-East (EVPN-VXLAN Fabric)', x: 110, y: 55, w: 720, h: 340, color: '#3b82f6' },
+  { id: 'dc-sec', label: 'DC Security Zone', x: 530, y: 450, w: 330, h: 220, color: '#ef4444' },
+  { id: 'wan', label: 'WAN — SP Transport (AS 64500)', x: 440, y: 715, w: 380, h: 90, color: '#a855f7' },
+  { id: 'branch', label: 'Branch-01', x: 170, y: 815, w: 200, h: 200, color: '#22c55e' },
+  { id: 'dr', label: 'DR-West (Collapsed EVPN)', x: 1050, y: 55, w: 350, h: 530, color: '#f59e0b' },
+];
+
+const vendorColors = { arista: '#3b82f6', cisco: '#22c55e', fortinet: '#ef4444', alpine: '#6b7280' };
+const flowColors = { underlay: '#3b82f6', overlay: '#f59e0b', vxlan: '#22c55e', wan: '#a855f7', ha: '#ef4444' };
+
+// ==========================================
+// RENDER TOPOLOGY SVG
+// ==========================================
+const svg = document.getElementById('topoSvg');
+const nodeMap = {};
+nodes.forEach(n => nodeMap[n.id] = n);
+
+let activeFlow = null;
+
+function renderTopology() {
+  let html = '<defs>';
+  Object.entries(flowColors).forEach(([name, color]) => {
+    html += `<filter id="glow-${name}" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3" result="blur"/><feFlood flood-color="${color}" flood-opacity="0.6"/><feComposite in2="blur" operator="in"/><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter>`;
+  });
+  html += '</defs>';
+
+  sites.forEach(s => {
+    html += `<rect class="site-box" x="${s.x}" y="${s.y}" width="${s.w}" height="${s.h}" stroke="${s.color}" opacity="0.3"/>`;
+    html += `<text class="site-label" x="${s.x + 10}" y="${s.y + 20}" fill="${s.color}">${s.label}</text>`;
+  });
+
+  links.forEach((link, i) => {
+    const a = nodeMap[link.from];
+    const b = nodeMap[link.to];
+    if (!a || !b) return;
+    const flowType = link.flow[0];
+    const color = flowColors[flowType] || '#30363d';
+    const isOverlay = link.overlay;
+    const dash = isOverlay ? 'stroke-dasharray="6 4"' : link.haLink ? 'stroke-dasharray="3 3"' : link.l2Transport ? 'stroke-dasharray="8 4"' : '';
+    let ox = 0, oy = 0;
+    if (isOverlay) { ox = 4; oy = -4; }
+    html += `<line class="link-line" data-flows="${link.flow.join(',')}" x1="${a.x + ox}" y1="${a.y + oy}" x2="${b.x + ox}" y2="${b.y + oy}" stroke="${color}" ${dash} id="link-${i}"/>`;
+  });
+
+  const nodeW = 120, nodeH = 40;
+  const badgeColors = {
+    managed:  { bg: 'rgba(34,197,94,0.25)', stroke: '#22c55e', text: '#22c55e', label: 'MANAGED' },
+    observed: { bg: 'rgba(245,158,11,0.25)', stroke: '#f59e0b', text: '#f59e0b', label: 'OBSERVED' },
+    excluded: { bg: 'rgba(107,114,128,0.2)', stroke: '#6b7280', text: '#6b7280', label: 'EXCLUDED' }
+  };
+  nodes.forEach(n => {
+    const color = vendorColors[n.vendor];
+    const b = badgeColors[n.boundary] || badgeColors.excluded;
+    const strokeW = n.boundary === 'managed' ? 2.5 : 1.5;
+    html += `<g class="node-group" data-id="${n.id}" onclick="selectNode('${n.id}')">`;
+    html += `<rect class="node-rect" x="${n.x - nodeW/2}" y="${n.y - nodeH/2}" width="${nodeW}" height="${nodeH}" fill="${color}" stroke="${b.stroke}" stroke-width="${strokeW}"/>`;
+    html += `<text class="node-label" x="${n.x}" y="${n.y - 2}">${n.label}</text>`;
+    html += `<text class="node-sublabel" x="${n.x}" y="${n.y + 10}">${n.sub}</text>`;
+    const badgeW = 56, badgeH = 14, badgeY = n.y + nodeH/2 + 4;
+    html += `<rect x="${n.x - badgeW/2}" y="${badgeY}" width="${badgeW}" height="${badgeH}" rx="3" ry="3" fill="${b.bg}" stroke="${b.stroke}" stroke-width="0.5"/>`;
+    html += `<text x="${n.x}" y="${badgeY + 10}" text-anchor="middle" fill="${b.text}" font-size="7" font-weight="700" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" letter-spacing="0.5">${b.label}</text>`;
+    html += `</g>`;
+  });
+
+  svg.innerHTML = html;
+}
+
+renderTopology();
+
+// ==========================================
+// FLOW HIGHLIGHTING
+// ==========================================
+document.querySelectorAll('.flow-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const flow = btn.dataset.flow;
+    document.querySelectorAll('.flow-btn').forEach(b => b.classList.remove('active'));
+    if (flow === 'none' || activeFlow === flow) {
+      activeFlow = null;
+      document.querySelectorAll('.link-line').forEach(l => {
+        l.classList.remove('highlighted');
+        l.style.opacity = '0.4';
+        l.style.strokeWidth = '1.5';
+      });
+      return;
+    }
+    btn.classList.add('active');
+    activeFlow = flow;
+    document.querySelectorAll('.link-line').forEach(l => {
+      const flows = l.dataset.flows.split(',');
+      if (flows.includes(flow)) {
+        l.classList.add('highlighted');
+        l.style.opacity = '1';
+        l.style.strokeWidth = '2.5';
+        l.style.filter = `url(#glow-${flow})`;
+      } else {
+        l.classList.remove('highlighted');
+        l.style.opacity = '0.1';
+        l.style.strokeWidth = '1';
+        l.style.filter = 'none';
+      }
+    });
+    updatePrompt();
+  });
+});
+
+// ==========================================
+// NODE SELECTION
+// ==========================================
+let selectedNode = null;
+
+function selectNode(id) {
+  const n = nodeMap[id];
+  if (!n) return;
+  selectedNode = n;
+
+  const panel = document.getElementById('nodeDetail');
+  let html = `<h3>${n.label}</h3>`;
+  html += `<div class="detail-row"><span class="label">Role</span><span class="value">${n.role}</span></div>`;
+  html += `<div class="detail-row"><span class="label">Vendor</span><span class="value" style="color:${vendorColors[n.vendor]}">${n.vendor.charAt(0).toUpperCase() + n.vendor.slice(1)}</span></div>`;
+  html += `<div class="detail-row"><span class="label">Boundary</span><span class="boundary-tag boundary-${n.boundary}">${n.boundary.toUpperCase()}</span></div>`;
+  if (n.asn) html += `<div class="detail-row"><span class="label">ASN</span><span class="value">${n.asn}</span></div>`;
+  if (n.loopback) html += `<div class="detail-row"><span class="label">Loopback0</span><span class="value">${n.loopback}</span></div>`;
+  if (n.vtep) html += `<div class="detail-row"><span class="label">VTEP (Lo1)</span><span class="value">${n.vtep}</span></div>`;
+  if (n.routeMap) html += `<div class="detail-row"><span class="label">Route Policy</span><span class="value">${n.routeMap}</span></div>`;
+  if (n.zones) html += `<div class="detail-row"><span class="label">FW Zones</span><span class="value">${n.zones}</span></div>`;
+  if (n.interfaces) {
+    html += `<div style="margin-top:10px;font-size:12px;color:var(--text-muted)"><strong style="color:var(--text)">Interfaces</strong></div>`;
+    n.interfaces.forEach(iface => {
+      html += `<div style="font-size:12px;color:var(--text-muted);padding:2px 0;font-family:'SF Mono',Menlo,monospace">${iface}</div>`;
+    });
+  }
+  panel.innerHTML = html;
+
+  document.querySelectorAll('.node-rect').forEach(r => r.style.filter = '');
+  const group = document.querySelector(`.node-group[data-id="${id}"] .node-rect`);
+  if (group) group.style.filter = 'brightness(1.5) drop-shadow(0 0 6px rgba(88,166,255,0.5))';
+
+  updatePrompt();
+}
+
+// ==========================================
+// PROMPT OUTPUT
+// ==========================================
+function updatePrompt() {
+  const parts = [];
+  if (selectedNode) {
+    parts.push(`Selected node: ${selectedNode.label} (${selectedNode.role}, ${selectedNode.vendor}, ${selectedNode.boundary})`);
+  }
+  if (activeFlow) {
+    const flowNames = { underlay: 'eBGP underlay', overlay: 'iBGP EVPN overlay', vxlan: 'VXLAN data plane', wan: 'WAN transit', ha: 'firewall HA failover' };
+    parts.push(`Showing flow: ${flowNames[activeFlow]}`);
+  }
+  const prompt = document.getElementById('promptOutput');
+  const text = document.getElementById('promptText');
+  if (parts.length > 0) {
+    text.textContent = parts.join(' | ');
+    prompt.classList.add('visible');
+  } else {
+    prompt.classList.remove('visible');
+  }
+}
+
+function copyPrompt() {
+  const text = document.getElementById('promptText').textContent;
+  navigator.clipboard.writeText(text);
+  const btn = document.getElementById('promptCopy');
+  btn.textContent = 'Copied!';
+  setTimeout(() => btn.textContent = 'Copy', 1500);
+}
+
+function copyBlock(btn) {
+  const pre = btn.parentElement.querySelector('pre');
+  navigator.clipboard.writeText(pre.textContent);
+  btn.textContent = 'Copied!';
+  setTimeout(() => btn.textContent = 'Copy', 1500);
+}
+
+// ==========================================
+// TROUBLESHOOTING ACCORDION + SEARCH
+// ==========================================
+function toggleTs(header) {
+  header.parentElement.classList.toggle('open');
+}
+
+document.getElementById('tsSearch').addEventListener('input', function() {
+  const q = this.value.toLowerCase().trim();
+  document.querySelectorAll('.ts-section').forEach(section => {
+    if (!q) {
+      section.classList.remove('ts-hidden');
+      return;
+    }
+    const keywords = section.dataset.keywords || '';
+    const title = section.querySelector('.ts-title').textContent.toLowerCase();
+    const body = section.querySelector('.ts-body').textContent.toLowerCase();
+    const match = keywords.includes(q) || title.includes(q) || body.includes(q);
+    section.classList.toggle('ts-hidden', !match);
+  });
+});
+</script>
+</body>
+</html>

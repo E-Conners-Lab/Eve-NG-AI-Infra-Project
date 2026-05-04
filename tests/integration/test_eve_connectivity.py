@@ -140,15 +140,16 @@ class TestReachabilityLogic:
         from scripts.run_reachability import run_reachability
 
         empty_spec = {**spec, "tests": {"reachability_matrix": []}}
-        passed, failed = run_reachability(empty_spec, dry_run=True)
+        passed, failed, results = run_reachability(empty_spec, dry_run=True)
         assert passed == 0
         assert failed == 0
+        assert results == []
 
     def test_dry_run_passes_all(self, spec: dict) -> None:
         """Dry run should pass all reachability tests."""
         from scripts.run_reachability import run_reachability
 
-        passed, failed = run_reachability(spec, dry_run=True)
+        passed, failed, _results = run_reachability(spec, dry_run=True)
         matrix_len = len(spec.get("tests", {}).get("reachability_matrix", []))
         assert passed + failed == matrix_len
         assert failed == 0

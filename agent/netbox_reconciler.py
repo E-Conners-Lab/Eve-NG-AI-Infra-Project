@@ -155,20 +155,59 @@ def create_journal_entry(
         return False
 
 
+# Track consecutive failures so operators can detect silent breakage
+_consecutive_failures: int = 0
+FAILURE_LOG_THRESHOLD = 3
+# Re-escalate to ERROR every N failures after the first threshold hit,
+# so log monitoring doesn't go quiet after the initial alert.
+FAILURE_RE_ESCALATE_INTERVAL = 10
+
+
 def reconcile_drifts(device_name: str, drifts: list[dict]) -> bool:
     """Gate function — create a NetBox journal entry if reconciliation is enabled.
 
     Called from agent/runner.py after drift detection. Wrapped in
     try/except so a NetBox failure never blocks the agent.
 
+    Logs escalating warnings when consecutive failures exceed the threshold,
+    so silent breakage becomes visible in logs.
+
     Returns True if journal entry was created, False otherwise.
     """
+    global _consecutive_failures
+
     if not is_reconciliation_enabled():
         return False
 
     try:
         api = _get_netbox_api()
-        return create_journal_entry(device_name, drifts, api)
+        result = create_journal_entry(device_name, drifts, api)
+        if result:
+            if _consecutive_failures > 0:
+                logger.info(
+                    "NetBox reconciliation recovered after %d consecutive failures",
+                    _consecutive_failures,
+                )
+            _consecutive_failures = 0
+        return result
     except Exception as e:
-        logger.warning("NetBox reconciliation failed for %s: %s", device_name, e)
+        _consecutive_failures += 1
+        # Escalate to ERROR at threshold and periodically thereafter
+        if _consecutive_failures == FAILURE_LOG_THRESHOLD or (
+            _consecutive_failures > FAILURE_LOG_THRESHOLD
+            and _consecutive_failures % FAILURE_RE_ESCALATE_INTERVAL == 0
+        ):
+            logger.error(
+                "NetBox reconciliation has failed %d consecutive times "
+                "(device: %s, error: %s). Check NetBox URL, token, and connectivity.",
+                _consecutive_failures,
+                device_name,
+                type(e).__name__,
+            )
+        elif _consecutive_failures < FAILURE_LOG_THRESHOLD:
+            logger.warning(
+                "NetBox reconciliation failed for %s: %s",
+                device_name,
+                type(e).__name__,
+            )
         return False

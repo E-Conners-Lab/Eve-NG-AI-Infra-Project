@@ -210,7 +210,7 @@ def select_random_fault(spec: dict, device_filter: str = "") -> Fault:
     fault_def = random.choice(fault_types)
 
     # Pick a concrete target (interface, neighbor, etc.) from the device spec
-    detail = _pick_fault_target(device, fault_def["name"])
+    detail = _pick_fault_target(device, fault_def["name"], spec)
 
     return Fault(
         fault_type=fault_def["name"],
@@ -221,7 +221,7 @@ def select_random_fault(spec: dict, device_filter: str = "") -> Fault:
     )
 
 
-def _pick_fault_target(device: dict, fault_type: str) -> str:
+def _pick_fault_target(device: dict, fault_type: str, spec: dict | None = None) -> str:
     """Pick a concrete interface/neighbor/VNI for the fault from the device spec."""
     interfaces = device.get("interfaces", [])
 
@@ -244,7 +244,19 @@ def _pick_fault_target(device: dict, fault_type: str) -> str:
         return ""
 
     if fault_type == "remove_vni":
-        return "10100"  # First VNI in the fabric
+        # Read VNI from the device's site fabric spec — never hardcode
+        if spec:
+            for _sk, site in spec.get("sites", {}).items():
+                site_devices = [d["name"] for d in site.get("devices", [])]
+                if device["name"] in site_devices:
+                    vni_mappings = site.get("fabric", {}).get("vxlan", {}).get("vni_mappings", [])
+                    if vni_mappings:
+                        return str(vni_mappings[0]["vni"])
+        # Fallback: check device interfaces for vni field
+        for iface in interfaces:
+            if iface.get("vni"):
+                return str(iface["vni"])
+        return ""
 
     return ""
 
@@ -279,11 +291,17 @@ def verify_detection(fault: Fault, agent_result: dict) -> bool:
     return False
 
 
+ROLLBACK_TIMEOUT_SECONDS = 120
+
+
 def rollback_fault(fault: Fault, creds: object) -> bool:
     """Rollback by pushing the clean config from configs/generated/.
 
-    Returns True on success.
+    Returns True on success. Bounded by ROLLBACK_TIMEOUT_SECONDS so a
+    broken device doesn't hang the finally block forever.
     """
+    import signal
+
     from scripts.push_configs import push_config_to_device
 
     config_path = CONFIGS_DIR / f"{fault.device}.cfg"
@@ -301,15 +319,42 @@ def rollback_fault(fault: Fault, creds: object) -> bool:
         password = creds.fortigate_password or password
 
     log_file = Path("logs") / "chaos_rollback.jsonl"
-    return push_config_to_device(
-        fault.device,
-        fault.platform,
-        config_path,
-        mgmt_ip,
-        username,
-        password,
-        log_file,
-    )
+
+    def _timeout_handler(signum: int, frame: object) -> None:
+        raise TimeoutError(f"Rollback timed out after {ROLLBACK_TIMEOUT_SECONDS}s")
+
+    # Use SIGALRM for bounded rollback (Unix only; on Windows falls through)
+    old_handler = None
+    try:
+        old_handler = signal.signal(signal.SIGALRM, _timeout_handler)
+        signal.alarm(ROLLBACK_TIMEOUT_SECONDS)
+    except (OSError, AttributeError):
+        pass  # SIGALRM not available (Windows) — rollback runs unbounded
+
+    try:
+        return push_config_to_device(
+            fault.device,
+            fault.platform,
+            config_path,
+            mgmt_ip,
+            username,
+            password,
+            log_file,
+        )
+    except TimeoutError:
+        logger.error(
+            "Rollback TIMED OUT for %s after %ds — device may be in faulted state",
+            fault.device,
+            ROLLBACK_TIMEOUT_SECONDS,
+        )
+        return False
+    finally:
+        try:
+            signal.alarm(0)
+            if old_handler is not None:
+                signal.signal(signal.SIGALRM, old_handler)
+        except (OSError, AttributeError):
+            pass
 
 
 def run_chaos_test(
@@ -372,6 +417,12 @@ def run_chaos_test(
         if fault.platform != "fortinet_fortios":
             conn.enable()
 
+        # Look up the device's actual ASN from the spec for wrong_asn faults
+        from agent.runner import _find_device_in_spec
+
+        dev_spec, _ = _find_device_in_spec(spec, fault.device)
+        device_asn = dev_spec.get("asn", 0)
+
         cmds = build_fault_commands(
             fault.platform,
             fault.fault_type,
@@ -379,7 +430,7 @@ def run_chaos_test(
             neighbor=fault.detail,
             wrong_asn=99999,
             wrong_ip="10.99.99.99/31",
-            local_asn=0,
+            local_asn=device_asn,
             vni=fault.detail,
         )
 

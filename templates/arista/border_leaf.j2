@@ -42,10 +42,11 @@ router bgp {{ asn }}
       redistribute connected route-map ADVERTISE-DC
    exit
    !
-   ! Overlay iBGP EVPN to spine route reflectors
+   ! Overlay eBGP EVPN to spines
 {% for spine in spines %}
    neighbor {{ ip_no_mask(spine.loopback0) }} remote-as {{ spine.asn }}
    neighbor {{ ip_no_mask(spine.loopback0) }} update-source Loopback0
+   neighbor {{ ip_no_mask(spine.loopback0) }} ebgp-multihop 3
    neighbor {{ ip_no_mask(spine.loopback0) }} description {{ spine.name }} EVPN
    neighbor {{ ip_no_mask(spine.loopback0) }} send-community extended
 {% endfor %}

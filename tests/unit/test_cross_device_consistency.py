@@ -166,10 +166,11 @@ class TestBGPPeeringReciprocity:
             f"{b_name} missing: neighbor {a_ip} remote-as {a_asn}"
         )
 
-    def test_dc_overlay_ibgp_spine_to_leaf_reciprocal(self, spec: dict) -> None:
+    def test_dc_overlay_ebgp_spine_to_leaf_reciprocal(self, spec: dict) -> None:
         """Spine EVPN overlay peers with leaf loopbacks, and leaves peer back with spine loopbacks.
 
-        iBGP EVPN: same ASN (65000) on both sides, update-source Loopback0.
+        eBGP EVPN: spine uses leaf's ASN, leaf uses spine's ASN (65000),
+        update-source Loopback0, ebgp-multihop on both sides.
         """
         leaf_names = ["dc-leaf-1", "dc-leaf-2", "dc-border-1", "dc-border-2"]
         spine_names = ["dc-spine-1", "dc-spine-2"]
@@ -181,14 +182,21 @@ class TestBGPPeeringReciprocity:
             for leaf_name in leaf_names:
                 leaf_lo = _get_device_loopback(spec, leaf_name)
                 leaf_config = _render(spec, leaf_name)
+                leaf_asn = _get_device_asn(spec, leaf_name)
 
-                # Spine must peer with leaf's loopback
-                assert f"neighbor {leaf_lo} remote-as 65000" in spine_config, (
-                    f"{spine_name} missing iBGP EVPN to {leaf_name} ({leaf_lo})"
+                # Spine must peer with leaf's loopback using leaf's ASN (eBGP)
+                assert f"neighbor {leaf_lo} remote-as {leaf_asn}" in spine_config, (
+                    f"{spine_name} missing eBGP EVPN to {leaf_name} ({leaf_lo} AS {leaf_asn})"
                 )
-                # Leaf must peer with spine's loopback
+                assert f"neighbor {leaf_lo} ebgp-multihop" in spine_config, (
+                    f"{spine_name} missing ebgp-multihop for {leaf_name}"
+                )
+                # Leaf must peer with spine's loopback using spine's ASN (65000)
                 assert f"neighbor {spine_lo} remote-as 65000" in leaf_config, (
-                    f"{leaf_name} missing iBGP EVPN to {spine_name} ({spine_lo})"
+                    f"{leaf_name} missing eBGP EVPN to {spine_name} ({spine_lo})"
+                )
+                assert f"neighbor {spine_lo} ebgp-multihop" in leaf_config, (
+                    f"{leaf_name} missing ebgp-multihop for {spine_name}"
                 )
 
     def test_dr_collapsed_ebgp_reciprocal(self, spec: dict) -> None:
@@ -239,31 +247,29 @@ class TestBGPAddressFamilySemantic:
     instead of the loopback-based overlay mesh.
     """
 
-    def test_spine_evpn_only_on_ibgp(self, spec: dict) -> None:
-        """dc-spine-1: EVPN neighbors must all be iBGP (same ASN, loopback-sourced)."""
+    def test_spine_evpn_loopback_sourced(self, spec: dict) -> None:
+        """dc-spine-1: EVPN neighbors must be loopback-sourced with ebgp-multihop."""
         config = _render(spec, "dc-spine-1")
         neighbors = _parse_bgp_neighbors(config)
 
         for n in neighbors:
             if n["in_evpn_af"]:
-                assert n["remote_as"] == 65000, (
-                    f"EVPN activated on non-iBGP neighbor {n['ip']} "
-                    f"(remote-as {n['remote_as']}, expected 65000)"
-                )
                 assert n["has_update_source_lo"], (
-                    f"EVPN neighbor {n['ip']} missing update-source Loopback0 — "
-                    "overlay sessions must use stable loopback endpoints"
+                    f"EVPN neighbor {n['ip']} missing update-source Loopback0"
+                )
+                assert "ebgp-multihop" in config, (
+                    "Spine missing ebgp-multihop for eBGP EVPN overlay"
                 )
 
-    def test_leaf_evpn_only_on_ibgp(self, spec: dict) -> None:
-        """dc-leaf-1: EVPN neighbors must be iBGP to spines, not eBGP underlay."""
+    def test_leaf_evpn_loopback_sourced(self, spec: dict) -> None:
+        """dc-leaf-1: EVPN neighbors must be loopback-sourced to spines."""
         config = _render(spec, "dc-leaf-1")
         neighbors = _parse_bgp_neighbors(config)
 
         for n in neighbors:
             if n["in_evpn_af"]:
                 assert n["remote_as"] == 65000, (
-                    f"dc-leaf-1: EVPN on non-iBGP neighbor {n['ip']} (remote-as {n['remote_as']})"
+                    f"dc-leaf-1: EVPN neighbor {n['ip']} should peer to spine AS 65000"
                 )
                 assert n["has_update_source_lo"], (
                     f"dc-leaf-1: EVPN neighbor {n['ip']} not loopback-sourced"
@@ -318,10 +324,10 @@ class TestVNIVLANConsistency:
     """
 
     def _extract_vni_vlan_mappings(self, config: str) -> dict[int, int]:
-        """Extract {VNI: VLAN} from 'vxlan vni N vlan M' lines."""
+        """Extract {VNI: VLAN} from 'vxlan vlan M vni N' lines (EOS syntax)."""
         mappings = {}
-        for match in re.finditer(r"vxlan\s+vni\s+(\d+)\s+vlan\s+(\d+)", config, re.IGNORECASE):
-            mappings[int(match.group(1))] = int(match.group(2))
+        for match in re.finditer(r"vxlan\s+vlan\s+(\d+)\s+vni\s+(\d+)", config, re.IGNORECASE):
+            mappings[int(match.group(2))] = int(match.group(1))
         return mappings
 
     def _extract_anycast_gateways(self, config: str) -> dict[int, str]:
