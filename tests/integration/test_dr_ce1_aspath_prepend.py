@@ -43,9 +43,7 @@ def sp_pe_2_view() -> str:
     target = nr.filter(filter_func=lambda h: h.name == "sp-pe-2")
     if not target.inventory.hosts:
         pytest.skip("sp-pe-2 not in inventory")
-    result = target.run(
-        task=netmiko_send_command, command_string=f"show ip bgp {DR_CE_1_LOOPBACK}"
-    )
+    result = target.run(task=netmiko_send_command, command_string=f"show ip bgp {DR_CE_1_LOOPBACK}")
     if result["sp-pe-2"].failed:
         pytest.fail(f"sp-pe-2 fetch failed: {result['sp-pe-2'].exception}")
     return str(result["sp-pe-2"][0].result)
@@ -84,9 +82,7 @@ class TestDrCe1Prepending:
     def test_sp_pe_2_received_prepended_path_from_dr_ce_1(self, sp_pe_2_view):
         """sp-pe-2's eBGP path from dr-ce-1 must show 3x AS 65130."""
         stanza = _stanza_from_peer(sp_pe_2_view, DR_CE_1_TO_SP_PE_2_IP)
-        assert stanza, (
-            f"no path from {DR_CE_1_TO_SP_PE_2_IP} (dr-ce-1) found in sp-pe-2's RIB"
-        )
+        assert stanza, f"no path from {DR_CE_1_TO_SP_PE_2_IP} (dr-ce-1) found in sp-pe-2's RIB"
         as_count = _aspath_length(stanza)
         assert as_count == 3, (
             f"expected AS-path length 3 (prepended 2x by dr-ce-1), got {as_count}\n"
