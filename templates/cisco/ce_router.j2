@@ -34,17 +34,20 @@ router bgp {{ asn }}
 {% if loop.index == 1 %}
  neighbor {{ pe.peer_ip }} remote-as {{ pe.remote_as }}
  neighbor {{ pe.peer_ip }} description {{ pe.peer_name }} (primary)
- neighbor {{ pe.peer_ip }} route-map PRIMARY-PE in
 {% else %}
  neighbor {{ pe.peer_ip }} remote-as {{ pe.remote_as }}
  neighbor {{ pe.peer_ip }} description {{ pe.peer_name }} (secondary)
- neighbor {{ pe.peer_ip }} route-map SECONDARY-PE in
 {% endif %}
 {% endfor %}
  !
  address-family ipv4
 {% for pe in pe_neighbors %}
   neighbor {{ pe.peer_ip }} activate
+{% if loop.index == 1 %}
+  neighbor {{ pe.peer_ip }} route-map PRIMARY-PE in
+{% else %}
+  neighbor {{ pe.peer_ip }} route-map SECONDARY-PE in
+{% endif %}
 {% endfor %}
   network {{ loopback0_ip }} mask {{ cidr_to_subnet(loopback0_mask | int) }}
 {% for iface in interfaces if not iface.get('peer', '').startswith('sp-pe') %}

@@ -97,10 +97,10 @@ def generate_testbed(spec: dict) -> dict:
 
         device_entry: dict = {
             "os": os_type,
-            "type": dev["role"],
             "custom": {
                 "agent_role": role,
                 "platform": platform,
+                "spec_role": dev["role"],
             },
             "connections": {
                 "cli": {
