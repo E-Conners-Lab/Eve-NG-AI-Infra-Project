@@ -16,6 +16,10 @@ dev = [
     "ruff>=0.3.0",
     "pynetbox>=7.3.0",
     "requests>=2.31.0",
+    "fastmcp>=0.2.0",
+    "pybatfish>=2024.1.10",
+    "pandas>=2.0.0",
+    "ntc-templates>=4.0.0",
 ]
 generator = [
     "pynetbox>=7.3.0",
