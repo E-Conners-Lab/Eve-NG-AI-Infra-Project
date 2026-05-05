@@ -29,13 +29,17 @@ class TestTopologyEdges:
     """build_topology_edges must extract all physical links from the spec."""
 
     def test_total_unique_physical_links(self, spec: dict) -> None:
-        """Must find exactly 28 unique physical links (deduplicated)."""
+        """Must find exactly 26 unique physical links (deduplicated).
+
+        Includes 2 fw↔fw heartbeat links (ha-link type). Hosts are excluded
+        from the lab.
+        """
         from batfish.snapshot import build_topology_edges
 
         edges = build_topology_edges(spec)
         # Each physical link produces 2 directed edges (A->B and B->A)
-        # 28 physical links = 56 directed edges
-        assert len(edges) == 56
+        # 26 physical links = 52 directed edges
+        assert len(edges) == 52
 
     def test_edges_are_bidirectional(self, spec: dict) -> None:
         """Every A->B edge must have a matching B->A edge."""
@@ -62,17 +66,14 @@ class TestTopologyEdges:
                 f"Missing reverse edge for {e['node1']['hostname']}:{e['node1']['interfaceName']}"
             )
 
-    def test_includes_host_links(self, spec: dict) -> None:
-        """Host-to-switch links must be in topology (Batfish needs full physical map)."""
+    def test_includes_fw_heartbeat_links(self, spec: dict) -> None:
+        """fw↔fw HA heartbeat links (port3) must be in the topology."""
         from batfish.snapshot import build_topology_edges
 
         edges = build_topology_edges(spec)
-        hostnames = {e["node1"]["hostname"] for e in edges} | {
-            e["node2"]["hostname"] for e in edges
-        }
-        assert "dc-host-1" in hostnames
-        assert "br-host-1" in hostnames
-        assert "dr-host-1" in hostnames
+        edge_pairs = {(e["node1"]["hostname"], e["node2"]["hostname"]) for e in edges}
+        assert ("dc-fw-1", "dc-fw-2") in edge_pairs or ("dc-fw-2", "dc-fw-1") in edge_pairs
+        assert ("dr-fw-1", "dr-fw-2") in edge_pairs or ("dr-fw-2", "dr-fw-1") in edge_pairs
 
     def test_includes_cross_section_peers(self, spec: dict) -> None:
         """Links between sites and security zones must be found (e.g., border->fw)."""
@@ -127,11 +128,11 @@ class TestLayer1Topology:
             assert "interfaceName" in edge["node2"]
 
     def test_edge_count_matches(self, spec: dict) -> None:
-        """Edge count must equal 56 (28 physical links * 2 directions)."""
+        """Edge count must equal 52 (26 physical links * 2 directions)."""
         from batfish.snapshot import build_layer1_topology
 
         topo = build_layer1_topology(spec)
-        assert len(topo["edges"]) == 56
+        assert len(topo["edges"]) == 52
 
 
 # ---------------------------------------------------------------------------
@@ -169,7 +170,7 @@ class TestSnapshotBuild:
         assert topo_path.is_file()
         topo = json.loads(topo_path.read_text())
         assert "edges" in topo
-        assert len(topo["edges"]) == 56
+        assert len(topo["edges"]) == 52
 
     def test_clears_stale_files_on_rebuild(self, tmp_path: Path, spec: dict) -> None:
         """Rebuilding must clear stale files from previous run."""

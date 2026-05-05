@@ -14,21 +14,17 @@ management:
     dc-leaf-2: "192.168.68.113"
     dc-border-1: "192.168.68.114"
     dc-border-2: "192.168.68.115"
-    dc-host-1: "192.168.68.116"
-    dc-host-2: "192.168.68.117"
     dc-fw-1: "192.168.68.118"
     dc-fw-2: "192.168.68.119"
     dc-ce-1: "192.168.68.120"
     sp-pe-1: "192.168.68.121"
     sp-pe-2: "192.168.68.122"
     br-ce-1: "192.168.68.123"
-    br-host-1: "192.168.68.124"
     dr-leaf-1: "192.168.68.125"
     dr-leaf-2: "192.168.68.126"
     dr-fw-1: "192.168.68.127"
     dr-fw-2: "192.168.68.128"
     dr-ce-1: "192.168.68.129"
-    dr-host-1: "192.168.68.130"
 
 # EVE-NG platform mappings (template name, image folder, resource requirements)
 eve_ng_platforms:
@@ -72,21 +68,17 @@ eve_ng_layout:
   dc-leaf-2: [400, 200]
   dc-border-1: [600, 200]
   dc-border-2: [800, 200]
-  dc-host-1: [200, 350]
-  dc-host-2: [400, 350]
   dc-fw-1: [600, 350]
   dc-fw-2: [800, 350]
   dc-ce-1: [700, 500]
   sp-pe-1: [500, 650]
   sp-pe-2: [900, 650]
   br-ce-1: [300, 800]
-  br-host-1: [300, 950]
   dr-leaf-1: [1100, 200]
   dr-leaf-2: [1300, 200]
   dr-fw-1: [1100, 350]
   dr-fw-2: [1300, 350]
   dr-ce-1: [1200, 500]
-  dr-host-1: [1200, 800]
 
 # Shared overlay ASN for cross-site EVPN route-target interoperability
 shared_overlay_asn: 65000

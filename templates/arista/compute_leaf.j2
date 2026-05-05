@@ -36,7 +36,7 @@ interface {{ iface.name }}
 interface Vxlan1
    vxlan source-interface Loopback1
 {% for mapping in vxlan.get('vni_mappings', []) %}
-   vxlan vni {{ mapping.vni }} vlan {{ mapping.vlan }}
+   vxlan vlan {{ mapping.vlan }} vni {{ mapping.vni }}
 {% endfor %}
 !
 {% for mapping in vxlan.get('vni_mappings', []) %}
@@ -67,13 +67,17 @@ router bgp {{ asn }}
       neighbor {{ peer_ip(iface) }} activate
 {% endfor %}
       network {{ loopback0_ip }}/{{ loopback0_mask }}
+{% if vtep_ip %}
+      network {{ ip_no_mask(vtep_ip) }}/32
+{% endif %}
    exit
    !
 {% if spines %}
-   ! Overlay iBGP EVPN to spine route reflectors
+   ! Overlay eBGP EVPN to spines
 {% for spine in spines %}
    neighbor {{ ip_no_mask(spine.loopback0) }} remote-as {{ spine.asn }}
    neighbor {{ ip_no_mask(spine.loopback0) }} update-source Loopback0
+   neighbor {{ ip_no_mask(spine.loopback0) }} ebgp-multihop 3
    neighbor {{ ip_no_mask(spine.loopback0) }} description {{ spine.name }} EVPN
    neighbor {{ ip_no_mask(spine.loopback0) }} send-community extended
 {% endfor %}
@@ -84,10 +88,11 @@ router bgp {{ asn }}
 {% endfor %}
    exit
 {% elif evpn_peers %}
-   ! Overlay EVPN to peer leaves (collapsed design — no spines)
+   ! Overlay eBGP EVPN to peer leaves (collapsed design — no spines)
 {% for peer in evpn_peers %}
-   neighbor {{ ip_no_mask(peer.loopback0) }} remote-as {{ overlay_asn }}
+   neighbor {{ ip_no_mask(peer.loopback0) }} remote-as {{ peer.asn }}
    neighbor {{ ip_no_mask(peer.loopback0) }} update-source Loopback0
+   neighbor {{ ip_no_mask(peer.loopback0) }} ebgp-multihop 3
    neighbor {{ ip_no_mask(peer.loopback0) }} description {{ peer.name }} EVPN
    neighbor {{ ip_no_mask(peer.loopback0) }} send-community extended
 {% endfor %}

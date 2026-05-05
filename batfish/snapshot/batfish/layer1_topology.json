@@ -1,0 +1,524 @@
+{
+  "edges": [
+    {
+      "node1": {
+        "hostname": "dc-border-1",
+        "interfaceName": "Ethernet1"
+      },
+      "node2": {
+        "hostname": "dc-spine-1",
+        "interfaceName": "Ethernet3"
+      }
+    },
+    {
+      "node1": {
+        "hostname": "dc-spine-1",
+        "interfaceName": "Ethernet3"
+      },
+      "node2": {
+        "hostname": "dc-border-1",
+        "interfaceName": "Ethernet1"
+      }
+    },
+    {
+      "node1": {
+        "hostname": "dc-border-1",
+        "interfaceName": "Ethernet2"
+      },
+      "node2": {
+        "hostname": "dc-spine-2",
+        "interfaceName": "Ethernet3"
+      }
+    },
+    {
+      "node1": {
+        "hostname": "dc-spine-2",
+        "interfaceName": "Ethernet3"
+      },
+      "node2": {
+        "hostname": "dc-border-1",
+        "interfaceName": "Ethernet2"
+      }
+    },
+    {
+      "node1": {
+        "hostname": "dc-border-1",
+        "interfaceName": "Ethernet3"
+      },
+      "node2": {
+        "hostname": "dc-fw-1",
+        "interfaceName": "port1"
+      }
+    },
+    {
+      "node1": {
+        "hostname": "dc-fw-1",
+        "interfaceName": "port1"
+      },
+      "node2": {
+        "hostname": "dc-border-1",
+        "interfaceName": "Ethernet3"
+      }
+    },
+    {
+      "node1": {
+        "hostname": "dc-border-2",
+        "interfaceName": "Ethernet1"
+      },
+      "node2": {
+        "hostname": "dc-spine-1",
+        "interfaceName": "Ethernet4"
+      }
+    },
+    {
+      "node1": {
+        "hostname": "dc-spine-1",
+        "interfaceName": "Ethernet4"
+      },
+      "node2": {
+        "hostname": "dc-border-2",
+        "interfaceName": "Ethernet1"
+      }
+    },
+    {
+      "node1": {
+        "hostname": "dc-border-2",
+        "interfaceName": "Ethernet2"
+      },
+      "node2": {
+        "hostname": "dc-spine-2",
+        "interfaceName": "Ethernet4"
+      }
+    },
+    {
+      "node1": {
+        "hostname": "dc-spine-2",
+        "interfaceName": "Ethernet4"
+      },
+      "node2": {
+        "hostname": "dc-border-2",
+        "interfaceName": "Ethernet2"
+      }
+    },
+    {
+      "node1": {
+        "hostname": "dc-border-2",
+        "interfaceName": "Ethernet3"
+      },
+      "node2": {
+        "hostname": "dc-fw-2",
+        "interfaceName": "port1"
+      }
+    },
+    {
+      "node1": {
+        "hostname": "dc-fw-2",
+        "interfaceName": "port1"
+      },
+      "node2": {
+        "hostname": "dc-border-2",
+        "interfaceName": "Ethernet3"
+      }
+    },
+    {
+      "node1": {
+        "hostname": "dc-ce-1",
+        "interfaceName": "GigabitEthernet1"
+      },
+      "node2": {
+        "hostname": "sp-pe-1",
+        "interfaceName": "GigabitEthernet1"
+      }
+    },
+    {
+      "node1": {
+        "hostname": "sp-pe-1",
+        "interfaceName": "GigabitEthernet1"
+      },
+      "node2": {
+        "hostname": "dc-ce-1",
+        "interfaceName": "GigabitEthernet1"
+      }
+    },
+    {
+      "node1": {
+        "hostname": "dc-ce-1",
+        "interfaceName": "GigabitEthernet2"
+      },
+      "node2": {
+        "hostname": "dc-fw-1",
+        "interfaceName": "port2"
+      }
+    },
+    {
+      "node1": {
+        "hostname": "dc-fw-1",
+        "interfaceName": "port2"
+      },
+      "node2": {
+        "hostname": "dc-ce-1",
+        "interfaceName": "GigabitEthernet2"
+      }
+    },
+    {
+      "node1": {
+        "hostname": "dc-ce-1",
+        "interfaceName": "GigabitEthernet3"
+      },
+      "node2": {
+        "hostname": "dc-fw-2",
+        "interfaceName": "port2"
+      }
+    },
+    {
+      "node1": {
+        "hostname": "dc-fw-2",
+        "interfaceName": "port2"
+      },
+      "node2": {
+        "hostname": "dc-ce-1",
+        "interfaceName": "GigabitEthernet3"
+      }
+    },
+    {
+      "node1": {
+        "hostname": "dc-ce-1",
+        "interfaceName": "GigabitEthernet4"
+      },
+      "node2": {
+        "hostname": "sp-pe-2",
+        "interfaceName": "GigabitEthernet1"
+      }
+    },
+    {
+      "node1": {
+        "hostname": "sp-pe-2",
+        "interfaceName": "GigabitEthernet1"
+      },
+      "node2": {
+        "hostname": "dc-ce-1",
+        "interfaceName": "GigabitEthernet4"
+      }
+    },
+    {
+      "node1": {
+        "hostname": "dc-leaf-1",
+        "interfaceName": "Ethernet1"
+      },
+      "node2": {
+        "hostname": "dc-spine-1",
+        "interfaceName": "Ethernet1"
+      }
+    },
+    {
+      "node1": {
+        "hostname": "dc-spine-1",
+        "interfaceName": "Ethernet1"
+      },
+      "node2": {
+        "hostname": "dc-leaf-1",
+        "interfaceName": "Ethernet1"
+      }
+    },
+    {
+      "node1": {
+        "hostname": "dc-leaf-1",
+        "interfaceName": "Ethernet2"
+      },
+      "node2": {
+        "hostname": "dc-spine-2",
+        "interfaceName": "Ethernet1"
+      }
+    },
+    {
+      "node1": {
+        "hostname": "dc-spine-2",
+        "interfaceName": "Ethernet1"
+      },
+      "node2": {
+        "hostname": "dc-leaf-1",
+        "interfaceName": "Ethernet2"
+      }
+    },
+    {
+      "node1": {
+        "hostname": "dc-leaf-2",
+        "interfaceName": "Ethernet1"
+      },
+      "node2": {
+        "hostname": "dc-spine-1",
+        "interfaceName": "Ethernet2"
+      }
+    },
+    {
+      "node1": {
+        "hostname": "dc-spine-1",
+        "interfaceName": "Ethernet2"
+      },
+      "node2": {
+        "hostname": "dc-leaf-2",
+        "interfaceName": "Ethernet1"
+      }
+    },
+    {
+      "node1": {
+        "hostname": "dc-leaf-2",
+        "interfaceName": "Ethernet2"
+      },
+      "node2": {
+        "hostname": "dc-spine-2",
+        "interfaceName": "Ethernet2"
+      }
+    },
+    {
+      "node1": {
+        "hostname": "dc-spine-2",
+        "interfaceName": "Ethernet2"
+      },
+      "node2": {
+        "hostname": "dc-leaf-2",
+        "interfaceName": "Ethernet2"
+      }
+    },
+    {
+      "node1": {
+        "hostname": "dr-ce-1",
+        "interfaceName": "GigabitEthernet1"
+      },
+      "node2": {
+        "hostname": "sp-pe-1",
+        "interfaceName": "GigabitEthernet4"
+      }
+    },
+    {
+      "node1": {
+        "hostname": "sp-pe-1",
+        "interfaceName": "GigabitEthernet4"
+      },
+      "node2": {
+        "hostname": "dr-ce-1",
+        "interfaceName": "GigabitEthernet1"
+      }
+    },
+    {
+      "node1": {
+        "hostname": "dr-ce-1",
+        "interfaceName": "GigabitEthernet2"
+      },
+      "node2": {
+        "hostname": "dr-fw-1",
+        "interfaceName": "port2"
+      }
+    },
+    {
+      "node1": {
+        "hostname": "dr-fw-1",
+        "interfaceName": "port2"
+      },
+      "node2": {
+        "hostname": "dr-ce-1",
+        "interfaceName": "GigabitEthernet2"
+      }
+    },
+    {
+      "node1": {
+        "hostname": "dr-ce-1",
+        "interfaceName": "GigabitEthernet3"
+      },
+      "node2": {
+        "hostname": "dr-fw-2",
+        "interfaceName": "port2"
+      }
+    },
+    {
+      "node1": {
+        "hostname": "dr-fw-2",
+        "interfaceName": "port2"
+      },
+      "node2": {
+        "hostname": "dr-ce-1",
+        "interfaceName": "GigabitEthernet3"
+      }
+    },
+    {
+      "node1": {
+        "hostname": "dr-ce-1",
+        "interfaceName": "GigabitEthernet4"
+      },
+      "node2": {
+        "hostname": "sp-pe-2",
+        "interfaceName": "GigabitEthernet4"
+      }
+    },
+    {
+      "node1": {
+        "hostname": "sp-pe-2",
+        "interfaceName": "GigabitEthernet4"
+      },
+      "node2": {
+        "hostname": "dr-ce-1",
+        "interfaceName": "GigabitEthernet4"
+      }
+    },
+    {
+      "node1": {
+        "hostname": "br-ce-1",
+        "interfaceName": "GigabitEthernet1"
+      },
+      "node2": {
+        "hostname": "sp-pe-1",
+        "interfaceName": "GigabitEthernet3"
+      }
+    },
+    {
+      "node1": {
+        "hostname": "sp-pe-1",
+        "interfaceName": "GigabitEthernet3"
+      },
+      "node2": {
+        "hostname": "br-ce-1",
+        "interfaceName": "GigabitEthernet1"
+      }
+    },
+    {
+      "node1": {
+        "hostname": "br-ce-1",
+        "interfaceName": "GigabitEthernet2"
+      },
+      "node2": {
+        "hostname": "sp-pe-2",
+        "interfaceName": "GigabitEthernet3"
+      }
+    },
+    {
+      "node1": {
+        "hostname": "sp-pe-2",
+        "interfaceName": "GigabitEthernet3"
+      },
+      "node2": {
+        "hostname": "br-ce-1",
+        "interfaceName": "GigabitEthernet2"
+      }
+    },
+    {
+      "node1": {
+        "hostname": "dr-leaf-1",
+        "interfaceName": "Ethernet1"
+      },
+      "node2": {
+        "hostname": "dr-leaf-2",
+        "interfaceName": "Ethernet1"
+      }
+    },
+    {
+      "node1": {
+        "hostname": "dr-leaf-2",
+        "interfaceName": "Ethernet1"
+      },
+      "node2": {
+        "hostname": "dr-leaf-1",
+        "interfaceName": "Ethernet1"
+      }
+    },
+    {
+      "node1": {
+        "hostname": "dr-leaf-1",
+        "interfaceName": "Ethernet2"
+      },
+      "node2": {
+        "hostname": "dr-fw-1",
+        "interfaceName": "port1"
+      }
+    },
+    {
+      "node1": {
+        "hostname": "dr-fw-1",
+        "interfaceName": "port1"
+      },
+      "node2": {
+        "hostname": "dr-leaf-1",
+        "interfaceName": "Ethernet2"
+      }
+    },
+    {
+      "node1": {
+        "hostname": "dr-leaf-2",
+        "interfaceName": "Ethernet2"
+      },
+      "node2": {
+        "hostname": "dr-fw-2",
+        "interfaceName": "port1"
+      }
+    },
+    {
+      "node1": {
+        "hostname": "dr-fw-2",
+        "interfaceName": "port1"
+      },
+      "node2": {
+        "hostname": "dr-leaf-2",
+        "interfaceName": "Ethernet2"
+      }
+    },
+    {
+      "node1": {
+        "hostname": "sp-pe-1",
+        "interfaceName": "GigabitEthernet2"
+      },
+      "node2": {
+        "hostname": "sp-pe-2",
+        "interfaceName": "GigabitEthernet2"
+      }
+    },
+    {
+      "node1": {
+        "hostname": "sp-pe-2",
+        "interfaceName": "GigabitEthernet2"
+      },
+      "node2": {
+        "hostname": "sp-pe-1",
+        "interfaceName": "GigabitEthernet2"
+      }
+    },
+    {
+      "node1": {
+        "hostname": "dc-fw-1",
+        "interfaceName": "port3"
+      },
+      "node2": {
+        "hostname": "dc-fw-2",
+        "interfaceName": "port3"
+      }
+    },
+    {
+      "node1": {
+        "hostname": "dc-fw-2",
+        "interfaceName": "port3"
+      },
+      "node2": {
+        "hostname": "dc-fw-1",
+        "interfaceName": "port3"
+      }
+    },
+    {
+      "node1": {
+        "hostname": "dr-fw-1",
+        "interfaceName": "port3"
+      },
+      "node2": {
+        "hostname": "dr-fw-2",
+        "interfaceName": "port3"
+      }
+    },
+    {
+      "node1": {
+        "hostname": "dr-fw-2",
+        "interfaceName": "port3"
+      },
+      "node2": {
+        "hostname": "dr-fw-1",
+        "interfaceName": "port3"
+      }
+    }
+  ]
+}

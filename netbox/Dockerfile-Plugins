@@ -1,0 +1,5 @@
+FROM netboxcommunity/netbox:v4.5
+
+COPY plugins.txt /opt/netbox/
+
+RUN VIRTUAL_ENV=/opt/netbox/venv uv pip install -r /opt/netbox/plugins.txt

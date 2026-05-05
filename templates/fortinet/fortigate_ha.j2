@@ -25,6 +25,9 @@ config system ha
 end
 
 {% for iface in interfaces %}
+{% if iface.get('ha_role') == 'heartbeat' %}
+### {{ iface.name }} reserved for HA heartbeat (configured via system ha hbdev)
+{% else %}
 config system interface
     edit "{{ iface.name }}"
 {% if iface.get('ipv4') %}
@@ -36,6 +39,7 @@ config system interface
     next
 end
 
+{% endif %}
 {% endfor %}
 {% if mgmt_ip %}
 config system interface

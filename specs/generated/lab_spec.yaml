@@ -74,24 +74,6 @@ sites:
         peer: sp-pe-2
         peer_interface: GigabitEthernet1
       asn: 65100
-    - name: dc-host-1
-      role: host
-      platform: linux
-      interfaces:
-      - name: eth0
-        ipv4: 10.10.1.10/24
-        description: VNI 10100
-        peer: dc-leaf-1
-        peer_interface: Ethernet3
-    - name: dc-host-2
-      role: host
-      platform: linux
-      interfaces:
-      - name: eth0
-        ipv4: 10.10.2.10/24
-        description: VNI 10200
-        peer: dc-leaf-2
-        peer_interface: Ethernet3
     - name: dc-leaf-1
       role: leaf
       platform: arista_eos
@@ -107,10 +89,6 @@ sites:
         description: to dc-spine-2
         peer: dc-spine-2
         peer_interface: Ethernet1
-      - name: Ethernet3
-        description: to dc-host-1
-        peer: dc-host-1
-        peer_interface: eth0
       asn: 65001
     - name: dc-leaf-2
       role: leaf
@@ -127,10 +105,6 @@ sites:
         description: to dc-spine-2
         peer: dc-spine-2
         peer_interface: Ethernet2
-      - name: Ethernet3
-        description: to dc-host-2
-        peer: dc-host-2
-        peer_interface: eth0
       asn: 65002
     - name: dc-spine-1
       role: spine
@@ -209,7 +183,7 @@ sites:
         description: to sp-pe-2
         peer: sp-pe-2
         peer_interface: GigabitEthernet4
-      asn: 65100
+      asn: 65130
     fabric:
       underlay:
         asn: 65000
@@ -218,22 +192,22 @@ sites:
         router_id: 10.1.0.1
         neighbors:
         - address: 10.1.0.11
-          remote_as: 65000
+          remote_as: 65001
           description: dc-leaf-1 EVPN
           address_families:
           - evpn
         - address: 10.1.0.12
-          remote_as: 65000
+          remote_as: 65002
           description: dc-leaf-2 EVPN
           address_families:
           - evpn
         - address: 10.1.0.13
-          remote_as: 65000
+          remote_as: 65003
           description: dc-border-1 EVPN
           address_families:
           - evpn
         - address: 10.1.0.14
-          remote_as: 65000
+          remote_as: 65004
           description: dc-border-2 EVPN
           address_families:
           - evpn
@@ -334,22 +308,6 @@ sites:
         interface: GigabitEthernet1
       type: p2p
     - a_end:
-        device: dc-host-1
-        interface: eth0
-        ipv4: 10.10.1.10/24
-      z_end:
-        device: dc-leaf-1
-        interface: Ethernet3
-      type: p2p
-    - a_end:
-        device: dc-host-2
-        interface: eth0
-        ipv4: 10.10.2.10/24
-      z_end:
-        device: dc-leaf-2
-        interface: Ethernet3
-      type: p2p
-    - a_end:
         device: dc-leaf-1
         interface: Ethernet1
         ipv4: 10.1.1.1/31
@@ -413,6 +371,13 @@ sites:
         device: sp-pe-2
         interface: GigabitEthernet4
       type: p2p
+    - a_end:
+        device: dc-fw-1
+        interface: port3
+      z_end:
+        device: dc-fw-2
+        interface: port3
+      type: ha-link
   branch_01:
     devices:
     - name: br-ce-1
@@ -430,21 +395,7 @@ sites:
         description: to sp-pe-2
         peer: sp-pe-2
         peer_interface: GigabitEthernet3
-      - name: GigabitEthernet3
-        ipv4: 10.20.1.1/24
-        description: to br-host-1
-        peer: br-host-1
-        peer_interface: eth0
-      asn: 65100
-    - name: br-host-1
-      role: host
-      platform: linux
-      interfaces:
-      - name: eth0
-        ipv4: 10.20.1.10/24
-        description: Branch LAN
-        peer: br-ce-1
-        peer_interface: GigabitEthernet3
+      asn: 65120
     routing:
       asn: 65100
       router_id: 10.20.0.1
@@ -465,25 +416,8 @@ sites:
         device: sp-pe-2
         interface: GigabitEthernet3
       type: p2p
-    - a_end:
-        device: br-ce-1
-        interface: GigabitEthernet3
-        ipv4: 10.20.1.1/24
-      z_end:
-        device: br-host-1
-        interface: eth0
-      type: p2p
   dr_west:
     devices:
-    - name: dr-host-1
-      role: host
-      platform: linux
-      interfaces:
-      - name: eth0
-        ipv4: 10.30.1.10/24
-        description: DR LAN
-        peer: dr-leaf-1
-        peer_interface: Ethernet3
     - name: dr-leaf-1
       role: leaf
       platform: arista_eos
@@ -499,10 +433,6 @@ sites:
         description: to dr-fw-1
         peer: dr-fw-1
         peer_interface: port1
-      - name: Ethernet3
-        description: to dr-host-1
-        peer: dr-host-1
-        peer_interface: eth0
       asn: 65201
     - name: dr-leaf-2
       role: leaf
@@ -525,7 +455,7 @@ sites:
         asn: 65000
         neighbors:
         - address: 10.31.0.2
-          remote_as: 65201
+          remote_as: 65202
           description: dr-leaf-2 EVPN
           address_families:
           - evpn
@@ -545,14 +475,6 @@ sites:
           gateway: 10.30.1.1/24
           subnet: 10.30.1.0/24
     links:
-    - a_end:
-        device: dr-host-1
-        interface: eth0
-        ipv4: 10.30.1.10/24
-      z_end:
-        device: dr-leaf-1
-        interface: Ethernet3
-      type: p2p
     - a_end:
         device: dr-leaf-1
         interface: Ethernet1
@@ -577,6 +499,13 @@ sites:
         device: dr-fw-2
         interface: port1
       type: p2p
+    - a_end:
+        device: dr-fw-1
+        interface: port3
+      z_end:
+        device: dr-fw-2
+        interface: port3
+      type: ha-link
 wan_transport:
   devices:
   - name: sp-pe-1
@@ -656,6 +585,11 @@ security:
         description: to dc-ce-1
         peer: dc-ce-1
         peer_interface: GigabitEthernet2
+      - name: port3
+        description: HA heartbeat to dc-fw-2
+        peer: dc-fw-2
+        peer_interface: port3
+        ha_role: heartbeat
     - name: dc-fw-2
       role: firewall
       platform: fortinet_fortios
@@ -670,6 +604,11 @@ security:
         description: to dc-ce-1
         peer: dc-ce-1
         peer_interface: GigabitEthernet3
+      - name: port3
+        description: HA heartbeat to dc-fw-1
+        peer: dc-fw-1
+        peer_interface: port3
+        ha_role: heartbeat
     zones:
     - name: dc-trust
       type: trust
@@ -710,6 +649,11 @@ security:
         description: to dr-ce-1
         peer: dr-ce-1
         peer_interface: GigabitEthernet2
+      - name: port3
+        description: HA heartbeat to dr-fw-2
+        peer: dr-fw-2
+        peer_interface: port3
+        ha_role: heartbeat
     - name: dr-fw-2
       role: firewall
       platform: fortinet_fortios
@@ -724,6 +668,11 @@ security:
         description: to dr-ce-1
         peer: dr-ce-1
         peer_interface: GigabitEthernet3
+      - name: port3
+        description: HA heartbeat to dr-fw-1
+        peer: dr-fw-1
+        peer_interface: port3
+        ha_role: heartbeat
     zones:
     - name: dr-trust
       type: trust
@@ -784,21 +733,18 @@ agent:
     severity: warning
 tests:
   reachability_matrix:
-  - source: br-host-1
-    destination: dc-host-1
-    description: 'Branch to DC: br-host-1 to dc-host-1'
-  - source: br-host-1
-    destination: dc-host-2
-    description: 'Branch to DC: br-host-1 to dc-host-2'
-  - source: br-host-1
-    destination: dr-host-1
-    description: 'Branch to DR: br-host-1 to dr-host-1'
-  - source: dc-host-1
-    destination: dc-host-2
-    description: 'Intra-site DC: dc-host-1 to dc-host-2'
-  - source: dc-host-1
-    destination: dr-host-1
-    description: 'DC to DR: dc-host-1 to dr-host-1'
-  - source: dc-host-2
-    destination: dr-host-1
-    description: 'DC to DR: dc-host-2 to dr-host-1'
+  - source: dc-leaf-1
+    destination: dc-leaf-2
+    description: 'DC fabric: dc-leaf-1 lo0 to dc-leaf-2 lo0'
+  - source: dc-leaf-1
+    destination: dc-border-1
+    description: 'DC fabric: dc-leaf-1 lo0 to dc-border-1 lo0'
+  - source: dr-leaf-1
+    destination: dr-leaf-2
+    description: 'DR fabric: dr-leaf-1 lo0 to dr-leaf-2 lo0'
+  - source: br-ce-1
+    destination: dc-ce-1
+    description: 'Branch to DC: br-ce-1 lo0 to dc-ce-1 lo0 via SP'
+  - source: dc-ce-1
+    destination: dr-ce-1
+    description: 'DC to DR: dc-ce-1 lo0 to dr-ce-1 lo0 via SP'

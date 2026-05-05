@@ -62,10 +62,11 @@ class TestSpineConfig:
         dev = _get_device_from_spec(spec, "dc-spine-1")
         assert f"router bgp {dev['asn']}" in config
 
-    def test_evpn_route_reflector(self, spec: dict) -> None:
-        """Spine must have route-reflector-client in EVPN address family."""
+    def test_evpn_next_hop_unchanged(self, spec: dict) -> None:
+        """Spine must have next-hop-unchanged for eBGP EVPN overlay."""
         config = _render_device(spec, "dc-spine-1")
-        assert "route-reflector-client" in config
+        assert "next-hop-unchanged" in config
+        assert "ebgp-multihop" in config
 
     def test_loopback0_ip(self, spec: dict) -> None:
         """Loopback0 must have the IP from the spec."""
@@ -109,9 +110,9 @@ class TestComputeLeafConfig:
         assert f"router bgp {dev['asn']}" in config
 
     def test_vxlan_vni_mapping(self, spec: dict) -> None:
-        """VXLAN interface must map VNI 10100 to VLAN 100."""
+        """VXLAN interface must map VLAN 100 to VNI 10100."""
         config = _render_device(spec, "dc-leaf-1")
-        assert "vxlan vni 10100 vlan 100" in config.lower().replace("  ", " ")
+        assert "vxlan vlan 100 vni 10100" in config.lower().replace("  ", " ")
 
     def test_anycast_gateway(self, spec: dict) -> None:
         """Must have virtual-router mac and anycast gateway IP."""

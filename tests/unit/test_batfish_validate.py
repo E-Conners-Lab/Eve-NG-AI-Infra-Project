@@ -327,31 +327,31 @@ class TestValidatePreDeploy:
 
 
 # ---------------------------------------------------------------------------
-# Host IP resolution from spec
+# Device IP resolution from spec
 # ---------------------------------------------------------------------------
 class TestResolveHostIps:
-    """resolve_host_ip must find IPs for reachability matrix devices."""
+    """resolve_host_ip must find first-interface IPs for reachability matrix devices."""
 
-    def test_resolves_dc_host_1(self, spec: dict) -> None:
-        """dc-host-1 must resolve to 10.10.1.10."""
+    def test_resolves_dc_leaf_1(self, spec: dict) -> None:
+        """dc-leaf-1 must resolve to its first interface IP (10.1.1.1)."""
         from batfish.validate import resolve_host_ip
 
-        ip = resolve_host_ip(spec, "dc-host-1")
-        assert ip == "10.10.1.10"
+        ip = resolve_host_ip(spec, "dc-leaf-1")
+        assert ip == "10.1.1.1"
 
-    def test_resolves_br_host_1(self, spec: dict) -> None:
-        """br-host-1 must resolve to 10.20.1.10."""
+    def test_resolves_br_ce_1(self, spec: dict) -> None:
+        """br-ce-1 must resolve to its first interface IP (172.16.0.7)."""
         from batfish.validate import resolve_host_ip
 
-        ip = resolve_host_ip(spec, "br-host-1")
-        assert ip == "10.20.1.10"
+        ip = resolve_host_ip(spec, "br-ce-1")
+        assert ip == "172.16.0.7"
 
-    def test_resolves_dr_host_1(self, spec: dict) -> None:
-        """dr-host-1 must resolve to 10.30.1.10."""
+    def test_resolves_dr_leaf_1(self, spec: dict) -> None:
+        """dr-leaf-1 must resolve to its first interface IP (10.31.1.0)."""
         from batfish.validate import resolve_host_ip
 
-        ip = resolve_host_ip(spec, "dr-host-1")
-        assert ip == "10.30.1.10"
+        ip = resolve_host_ip(spec, "dr-leaf-1")
+        assert ip == "10.31.1.0"
 
     def test_unknown_device_returns_empty(self, spec: dict) -> None:
         """Unknown device must return empty string, not crash."""

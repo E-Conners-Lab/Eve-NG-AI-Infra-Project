@@ -13,6 +13,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import logging
 import sys
@@ -72,15 +73,21 @@ def _clean_config_lines(config_text: str, platform: str) -> list[str]:
         filtered = [line for line in lines if line.strip() and not line.strip().startswith("###")]
         # Skip the HA config block — it kills SSH sessions when mode changes.
         # HA must be configured via console on first boot.
+        # Track nesting depth so nested "config" / "end" pairs (e.g.,
+        # "config ha-mgmt-interfaces" inside "config system ha") don't
+        # prematurely exit the skip.
         result = []
-        skip_until_end = False
+        skip_depth = 0
         for line in filtered:
-            if line.strip() == "config system ha":
-                skip_until_end = True
+            stripped = line.strip()
+            if skip_depth == 0 and stripped == "config system ha":
+                skip_depth = 1
                 continue
-            if skip_until_end:
-                if line.strip() == "end":
-                    skip_until_end = False
+            if skip_depth > 0:
+                if stripped.startswith("config "):
+                    skip_depth += 1
+                elif stripped == "end":
+                    skip_depth -= 1
                 continue
             result.append(line)
         return result
@@ -194,15 +201,47 @@ def push_config_to_device(
         if platform == "fortinet_fortios":
             import time
 
+            rejected_lines: list[str] = []
             for line in clean_lines:
                 conn.write_channel(line + "\n")
                 time.sleep(0.5)
-            # Drain any pending output
-            time.sleep(3)
-            try:
+                # Read back after each command to catch errors
+                try:
+                    response = conn.read_channel()
+                    if response and any(
+                        err in response.lower()
+                        for err in (
+                            "command fail",
+                            "unknown action",
+                            "node_check_object",
+                            "entry not found",
+                            "invalid",
+                        )
+                    ):
+                        rejected_lines.append(f"{line.strip()} -> {response.strip()[:120]}")
+                except Exception:
+                    pass
+            # Drain any remaining output
+            time.sleep(2)
+            with contextlib.suppress(Exception):
                 conn.read_channel()
-            except Exception:
-                pass
+
+            if rejected_lines:
+                _gait_log(
+                    log_file,
+                    {
+                        "action": "push_fortios_rejected",
+                        "device": device_name,
+                        "rejected_count": len(rejected_lines),
+                        "rejected": rejected_lines[:20],
+                    },
+                )
+                logger.warning(
+                    "%s: %d FortiOS commands rejected: %s",
+                    device_name,
+                    len(rejected_lines),
+                    "; ".join(rejected_lines[:5]),
+                )
         else:
             conn.send_config_set(clean_lines, cmd_verify=False)
 

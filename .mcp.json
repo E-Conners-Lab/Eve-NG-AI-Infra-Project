@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "eve-ng-agent": {
+      "command": "/Users/elliotconner/PycharmProjects/Eve-NG_Agent/.venv/bin/python",
+      "args": ["mcp_server.py"],
+      "cwd": "/Users/elliotconner/PycharmProjects/Eve-NG_Agent",
+      "env": {
+        "PYTHONPATH": "/Users/elliotconner/PycharmProjects/Eve-NG_Agent"
+      }
+    }
+  }
+}
