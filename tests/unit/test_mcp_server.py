@@ -551,3 +551,128 @@ class TestNetboxReconcilerEscalation:
         result = reconciler.reconcile_drifts("dc-spine-1", [{"field": "ipv4"}])
         assert result is True
         assert reconciler._consecutive_failures == 0
+
+
+# ---------------------------------------------------------------------------
+# get_bgp_prefix tool — parser
+# ---------------------------------------------------------------------------
+class TestParseBgpPrefixIosxe:
+    """The Cisco IOS-XE 'show ip bgp <prefix>' parser must extract per-path
+    local-pref / AS-path / best-path / from-peer correctly."""
+
+    SAMPLE = (
+        "BGP routing table entry for 10.20.0.1/32, version 8\n"
+        "Paths: (2 available, best #2, table default)\n"
+        "  Advertised to update-groups:\n"
+        "     1         \n"
+        "  Refresh Epoch 5\n"
+        "  64500 65120\n"
+        "    172.16.0.3 from 172.16.0.3 (172.16.0.112)\n"
+        "      Origin IGP, localpref 100, valid, external\n"
+        "      rx pathid: 0, tx pathid: 0\n"
+        "  Refresh Epoch 4\n"
+        "  64500 65120\n"
+        "    172.16.0.1 from 172.16.0.1 (172.16.0.111)\n"
+        "      Origin IGP, localpref 200, valid, external, best\n"
+        "      rx pathid: 0, tx pathid: 0x0\n"
+    )
+
+    def test_parses_prefix(self) -> None:
+        from mcp_server import _parse_bgp_prefix_iosxe
+
+        out = _parse_bgp_prefix_iosxe(self.SAMPLE)
+        assert out["prefix"] == "10.20.0.1/32"
+
+    def test_extracts_best_path_index(self) -> None:
+        from mcp_server import _parse_bgp_prefix_iosxe
+
+        out = _parse_bgp_prefix_iosxe(self.SAMPLE)
+        assert out["best_path_index"] == 1
+
+    def test_finds_two_paths(self) -> None:
+        from mcp_server import _parse_bgp_prefix_iosxe
+
+        out = _parse_bgp_prefix_iosxe(self.SAMPLE)
+        assert len(out["paths"]) == 2
+
+    def test_local_pref_per_path(self) -> None:
+        from mcp_server import _parse_bgp_prefix_iosxe
+
+        out = _parse_bgp_prefix_iosxe(self.SAMPLE)
+        # path 0 = via sp-pe-2 (lower local-pref), path 1 = via sp-pe-1 (best)
+        assert out["paths"][0]["local_pref"] == 100
+        assert out["paths"][1]["local_pref"] == 200
+
+    def test_best_marker_only_on_winning_path(self) -> None:
+        from mcp_server import _parse_bgp_prefix_iosxe
+
+        out = _parse_bgp_prefix_iosxe(self.SAMPLE)
+        assert out["paths"][0]["best"] is False
+        assert out["paths"][1]["best"] is True
+
+    def test_as_path_length(self) -> None:
+        from mcp_server import _parse_bgp_prefix_iosxe
+
+        out = _parse_bgp_prefix_iosxe(self.SAMPLE)
+        for p in out["paths"]:
+            assert p["as_path_length"] == 2
+            assert p["as_path"] == "64500 65120"
+
+    def test_from_peer_distinct_per_path(self) -> None:
+        from mcp_server import _parse_bgp_prefix_iosxe
+
+        out = _parse_bgp_prefix_iosxe(self.SAMPLE)
+        from_peers = {p["from_peer"] for p in out["paths"]}
+        assert from_peers == {"172.16.0.1", "172.16.0.3"}
+
+    def test_external_internal_flags(self) -> None:
+        from mcp_server import _parse_bgp_prefix_iosxe
+
+        out = _parse_bgp_prefix_iosxe(self.SAMPLE)
+        for p in out["paths"]:
+            assert p["external"] is True
+            assert p["internal"] is False
+
+    def test_handles_empty_input(self) -> None:
+        from mcp_server import _parse_bgp_prefix_iosxe
+
+        out = _parse_bgp_prefix_iosxe("")
+        assert out["prefix"] == ""
+        assert out["paths"] == []
+
+
+class TestGetBgpPrefix:
+    """The MCP tool wrapper must validate inputs and route to platform parsers."""
+
+    @patch("mcp_server._load_creds")
+    @patch("mcp_server._load_spec")
+    def test_unknown_device_returns_error(
+        self, mock_spec: MagicMock, mock_creds: MagicMock
+    ) -> None:
+        from mcp_server import _run_bgp_prefix
+
+        mock_spec.return_value = {"sites": {}, "wan_transport": {"devices": []}, "security": {}}
+        mock_creds.return_value = MagicMock()
+        result = _run_bgp_prefix("nonexistent", "10.0.0.1")
+        assert "error" in result
+        assert "not found" in result["error"].lower()
+
+    def test_fortigate_returns_unsupported(self) -> None:
+        from mcp_server import _run_bgp_prefix
+
+        with (
+            patch("mcp_server._load_spec") as mock_spec,
+            patch("mcp_server._load_creds") as mock_creds,
+            patch("scripts.bootstrap_config.get_mgmt_ips", return_value={"dc-fw-1": "1.1.1.1"}),
+        ):
+            mock_spec.return_value = {
+                "sites": {},
+                "wan_transport": {"devices": []},
+                "security": {
+                    "dc": {"firewalls": [{"name": "dc-fw-1", "platform": "fortinet_fortios"}]}
+                },
+            }
+            mock_creds.return_value = MagicMock()
+            result = _run_bgp_prefix("dc-fw-1", "10.0.0.1")
+        assert "error" in result
+        assert "fortigate" in result["error"].lower()

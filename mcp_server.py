@@ -437,6 +437,150 @@ async def get_device_state(
 # ── Tool: get_topology ──
 
 
+def _parse_bgp_prefix_iosxe(raw: str) -> dict:
+    """Parse `show ip bgp <prefix>` output from Cisco IOS-XE into a structured
+    dict. Returns one entry per BGP path with local-pref, AS-path, next-hop,
+    best-path marker, and the originating peer.
+    """
+    import re
+
+    out: dict[str, Any] = {"prefix": "", "best_path_index": None, "paths": []}
+
+    m = re.search(r"BGP routing table entry for (\S+?)(?:,|\s)", raw)
+    if m:
+        out["prefix"] = m.group(1)
+    m = re.search(r"best #(\d+)", raw)
+    if m:
+        out["best_path_index"] = int(m.group(1)) - 1
+
+    blocks = re.split(r"\n\s*Refresh Epoch \d+\n", raw)[1:]  # drop preamble
+    for block in blocks:
+        lines = [line for line in block.splitlines() if line.strip()]
+        if not lines:
+            continue
+
+        as_path_line = lines[0].strip()
+        as_tokens = re.findall(r"\d+", as_path_line) if as_path_line.lower() != "local" else []
+
+        nh = re.search(
+            r"^\s+(\d+\.\d+\.\d+\.\d+)\s+from\s+(\d+\.\d+\.\d+\.\d+)\s*\((\S+?)\)",
+            block,
+            re.MULTILINE,
+        )
+        next_hop = nh.group(1) if nh else ""
+        from_peer = nh.group(2) if nh else ""
+        originator = nh.group(3) if nh else ""
+
+        def _int_after(label: str, src: str = block) -> int | None:
+            mm = re.search(rf"{label}\s+(\d+)", src)
+            return int(mm.group(1)) if mm else None
+
+        origin_match = re.search(r"Origin\s+(\S+?)(?:,|\s)", block)
+
+        out["paths"].append(
+            {
+                "as_path": " ".join(as_tokens),
+                "as_path_length": len(as_tokens),
+                "next_hop": next_hop,
+                "from_peer": from_peer,
+                "originator_id": originator,
+                "local_pref": _int_after("localpref"),
+                "med": _int_after("metric"),
+                "weight": _int_after("weight"),
+                "origin": origin_match.group(1) if origin_match else None,
+                "best": bool(re.search(r"\bbest\b", block)),
+                "external": "external" in block,
+                "internal": "internal" in block,
+            }
+        )
+
+    return out
+
+
+def _run_bgp_prefix(device: str, prefix: str) -> dict:
+    """SSH to a device, run `show ip bgp <prefix>`, return parsed output."""
+    from agent.runner import NETMIKO_DEVICE_TYPE, _connect, _find_device_in_spec
+    from scripts.bootstrap_config import get_mgmt_ips
+
+    spec = _load_spec()
+    creds = _load_creds()
+
+    dev, platform = _find_device_in_spec(spec, device)
+    if not dev:
+        return {"error": f"Device '{device}' not found in spec"}
+
+    mgmt_ips = get_mgmt_ips()
+    mgmt_ip = mgmt_ips.get(device, "")
+    if not mgmt_ip:
+        return {"error": f"No management IP for '{device}'"}
+
+    if platform not in NETMIKO_DEVICE_TYPE:
+        return {"error": f"Unsupported platform '{platform}' for '{device}'"}
+
+    if platform == "fortinet_fortios":
+        return {
+            "error": (
+                "FortiGate uses different per-prefix syntax — query a Cisco/Arista "
+                "BGP speaker instead, or extend get_bgp_prefix for FortiOS."
+            )
+        }
+
+    username = creds.device_username
+    password = creds.device_password
+
+    conn = _connect(device, platform, mgmt_ip, username, password)
+    if not conn:
+        return {"error": f"SSH connection failed to '{device}' ({mgmt_ip})"}
+
+    try:
+        cmd = f"show ip bgp {prefix}"
+        raw = conn.send_command(cmd)
+    finally:
+        conn.disconnect()
+
+    result: dict = {
+        "device": device,
+        "platform": platform,
+        "command": cmd,
+        "raw": raw,
+    }
+
+    if platform == "cisco_iosxe":
+        result["parsed"] = _parse_bgp_prefix_iosxe(raw)
+    else:
+        # Arista output format differs; raw is still useful but no parse for now.
+        result["parsed"] = None
+        result["note"] = (
+            "Structured parsing only implemented for cisco_iosxe; raw output "
+            "available above for review."
+        )
+
+    return result
+
+
+@mcp.tool()
+async def get_bgp_prefix(device: str, prefix: str) -> dict:
+    """Look up a specific prefix in a device's BGP table with structured output.
+
+    Returns parsed paths including local-pref, AS-path, next-hop, best-path
+    marker, and originating peer — the data you need to determine *why* a
+    path was selected (policy vs. tiebreaker), which `show ip bgp summary`
+    can't show.
+
+    Args:
+        device: Device name (e.g., dc-ce-1, dr-ce-1, sp-pe-1).
+        prefix: BGP prefix to look up (e.g., "10.20.0.1" or "172.16.0.102/32").
+
+    Currently returns structured `parsed` data for Cisco IOS-XE. For Arista
+    EOS the raw command output is returned with parsed=null.
+    """
+    if not device:
+        return {"error": "device is required"}
+    if not prefix:
+        return {"error": "prefix is required"}
+    return await _run_with_device_lock(device, _run_bgp_prefix, device, prefix)
+
+
 @mcp.tool()
 async def get_topology() -> dict:
     """Get the lab topology summary from the YAML spec.
