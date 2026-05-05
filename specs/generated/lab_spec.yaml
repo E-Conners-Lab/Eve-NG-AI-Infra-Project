@@ -183,7 +183,7 @@ sites:
         description: to sp-pe-2
         peer: sp-pe-2
         peer_interface: GigabitEthernet4
-      asn: 65100
+      asn: 65130
     fabric:
       underlay:
         asn: 65000
@@ -395,7 +395,7 @@ sites:
         description: to sp-pe-2
         peer: sp-pe-2
         peer_interface: GigabitEthernet3
-      asn: 65100
+      asn: 65120
     routing:
       asn: 65100
       router_id: 10.20.0.1
