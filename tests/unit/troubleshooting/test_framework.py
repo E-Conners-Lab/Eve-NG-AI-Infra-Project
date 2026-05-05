@@ -147,9 +147,8 @@ class TestRestoreCleanConfig:
     def test_restore_calls_push_with_clean_config(
         self, mock_creds: MagicMock, mock_ips: MagicMock, mock_push: MagicMock, tmp_path
     ) -> None:
-        from troubleshooting._common import restore_clean_config
-
         from troubleshooting import _common
+        from troubleshooting._common import restore_clean_config
 
         mock_creds.return_value = MagicMock(
             device_username="admin",
