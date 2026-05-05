@@ -25,6 +25,14 @@ route-map PRIMARY-PE permit 10
 route-map SECONDARY-PE permit 10
  set local-preference 100
 !
+! Inbound TE: prepend our AS twice on egress to the secondary PE so anyone
+! selecting on AS-path length downstream prefers the primary path. (Within
+! the SP's iBGP mesh this is masked by best-path picking the shorter
+! relayed copy — see tests/integration/test_dr_ce1_aspath_prepend.py for
+! the full caveat.)
+route-map LONG-PATH-OUT permit 10
+ set as-path prepend {{ asn }} {{ asn }}
+!
 router bgp {{ asn }}
  bgp router-id {{ loopback0_ip }}
  bgp log-neighbor-changes
@@ -47,6 +55,7 @@ router bgp {{ asn }}
   neighbor {{ pe.peer_ip }} route-map PRIMARY-PE in
 {% else %}
   neighbor {{ pe.peer_ip }} route-map SECONDARY-PE in
+  neighbor {{ pe.peer_ip }} route-map LONG-PATH-OUT out
 {% endif %}
 {% endfor %}
   network {{ loopback0_ip }} mask {{ cidr_to_subnet(loopback0_mask | int) }}
