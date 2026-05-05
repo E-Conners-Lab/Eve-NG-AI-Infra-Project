@@ -71,7 +71,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: uv pip install --system jsonschema pyyaml jinja2 pynetbox pandas pytest
+      - run: uv pip install --system jsonschema pyyaml jinja2 pynetbox pandas pytest netmiko requests
       - name: Run all unit tests (excludes integration)
         run: pytest tests/ --ignore=tests/integration -v
 
