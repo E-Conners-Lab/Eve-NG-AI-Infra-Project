@@ -151,10 +151,9 @@ def main() -> None:
         ctx = nb_dev.local_context_data or {}
         asn = get_device_asn(spec, name)
         changed = False
-        if asn:
-            if ctx.get("bgp", {}).get("asn") != asn:
-                ctx.setdefault("bgp", {})["asn"] = asn
-                changed = True
+        if asn and ctx.get("bgp", {}).get("asn") != asn:
+            ctx.setdefault("bgp", {})["asn"] = asn
+            changed = True
         spec_role = dev.get("role", "")
         if spec_role and ctx.get("role") != spec_role:
             ctx["role"] = spec_role
@@ -227,9 +226,7 @@ def main() -> None:
                 print(f"  {cidr}: updated description")
             continue
         if not args.dry_run:
-            nb.ipam.prefixes.create(
-                {"prefix": cidr, "description": desc, "status": "active"}
-            )
+            nb.ipam.prefixes.create({"prefix": cidr, "description": desc, "status": "active"})
         summary["prefix_created"] += 1
         print(f"  {cidr}: created — {desc}")
 

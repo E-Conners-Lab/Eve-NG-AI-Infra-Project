@@ -45,7 +45,9 @@ def get_loopback_ip_id(nb, device_name: str) -> int | None:
 
 
 def post_bgp_session(base_url: str, headers: dict, payload: dict) -> dict:
-    r = requests.post(f"{base_url}/api/plugins/bgp/session/", json=payload, headers=headers, timeout=15)
+    r = requests.post(
+        f"{base_url}/api/plugins/bgp/session/", json=payload, headers=headers, timeout=15
+    )
     if r.status_code in (200, 201):
         return r.json()
     if r.status_code == 400 and "already exists" in r.text.lower():
@@ -102,7 +104,9 @@ def main() -> None:
             device_asn[d["name"]] = d["asn"]
 
     # 3. Build BGP session list from spec (underlay eBGP via P2P link IPs)
-    sessions: list[dict] = []  # list of (local_dev, local_ip, remote_dev, remote_ip, name, description)
+    sessions: list[
+        dict
+    ] = []  # list of (local_dev, local_ip, remote_dev, remote_ip, name, description)
 
     # Walk every interface in the spec; for each one with peer + ipv4, the peer's
     # corresponding interface gives us the remote IP. Avoid duplicates (A↔B once).
@@ -113,11 +117,16 @@ def main() -> None:
         if key in seen:
             return
         seen.add(key)
-        sessions.append({
-            "local_dev": local_dev, "local_ip": local_ip,
-            "remote_dev": remote_dev, "remote_ip": remote_ip,
-            "name": label, "kind": "underlay",
-        })
+        sessions.append(
+            {
+                "local_dev": local_dev,
+                "local_ip": local_ip,
+                "remote_dev": remote_dev,
+                "remote_ip": remote_ip,
+                "name": label,
+                "kind": "underlay",
+            }
+        )
 
     def _walk_devices(devs, links_section_name: str):
         for d in devs:
@@ -133,7 +142,10 @@ def main() -> None:
                 peer_dev = next((x for x in all_devs if x["name"] == remote_dev), None)
                 if not peer_dev:
                     continue
-                peer_iface = next((i for i in peer_dev.get("interfaces", []) if i["name"] == remote_iface_name), None)
+                peer_iface = next(
+                    (i for i in peer_dev.get("interfaces", []) if i["name"] == remote_iface_name),
+                    None,
+                )
                 if not peer_iface or "ipv4" not in peer_iface:
                     continue
                 remote_ip = peer_iface["ipv4"].split("/")[0]
@@ -145,8 +157,9 @@ def main() -> None:
                 if d.get("role") == "firewall" or peer_dev.get("role") == "firewall":
                     continue
                 # Same logic: spine↔border, spine↔leaf, leaf↔leaf, ce↔pe — all valid BGP
-                _add_underlay(d["name"], local_ip, remote_dev, remote_ip,
-                              f'{d["name"]}↔{remote_dev}')
+                _add_underlay(
+                    d["name"], local_ip, remote_dev, remote_ip, f"{d['name']}↔{remote_dev}"
+                )
 
     all_devs = []
     for site in spec.get("sites", {}).values():
@@ -166,12 +179,16 @@ def main() -> None:
         a, b = pe_pair
         a_lo = a["loopback0"].split("/")[0]
         b_lo = b["loopback0"].split("/")[0]
-        sessions.append({
-            "local_dev": a["name"], "local_ip": a_lo,
-            "remote_dev": b["name"], "remote_ip": b_lo,
-            "name": "sp-pe-1↔sp-pe-2 iBGP",
-            "kind": "ibgp",
-        })
+        sessions.append(
+            {
+                "local_dev": a["name"],
+                "local_ip": a_lo,
+                "remote_dev": b["name"],
+                "remote_ip": b_lo,
+                "name": "sp-pe-1↔sp-pe-2 iBGP",
+                "kind": "ibgp",
+            }
+        )
 
     # DC EVPN overlay — spines as RRs, peer with each leaf/border via loopbacks
     dc_devs = spec["sites"]["dc_east"]["devices"]
@@ -181,24 +198,32 @@ def main() -> None:
         sp_lo = sp["loopback0"].split("/")[0]
         for cl in clients:
             cl_lo = cl["loopback0"].split("/")[0]
-            sessions.append({
-                "local_dev": sp["name"], "local_ip": sp_lo,
-                "remote_dev": cl["name"], "remote_ip": cl_lo,
-                "name": f'{sp["name"]}↔{cl["name"]} EVPN (RR)',
-                "kind": "evpn",
-            })
+            sessions.append(
+                {
+                    "local_dev": sp["name"],
+                    "local_ip": sp_lo,
+                    "remote_dev": cl["name"],
+                    "remote_ip": cl_lo,
+                    "name": f"{sp['name']}↔{cl['name']} EVPN (RR)",
+                    "kind": "evpn",
+                }
+            )
 
     # DR collapsed EVPN — leaves peer with each other via loopbacks
     dr_devs = spec["sites"]["dr_west"]["devices"]
     dr_leaves = [d for d in dr_devs if d.get("role") == "leaf"]
     if len(dr_leaves) == 2:
         a, b = dr_leaves
-        sessions.append({
-            "local_dev": a["name"], "local_ip": a["loopback0"].split("/")[0],
-            "remote_dev": b["name"], "remote_ip": b["loopback0"].split("/")[0],
-            "name": f'{a["name"]}↔{b["name"]} EVPN',
-            "kind": "evpn",
-        })
+        sessions.append(
+            {
+                "local_dev": a["name"],
+                "local_ip": a["loopback0"].split("/")[0],
+                "remote_dev": b["name"],
+                "remote_ip": b["loopback0"].split("/")[0],
+                "name": f"{a['name']}↔{b['name']} EVPN",
+                "kind": "evpn",
+            }
+        )
 
     # 4. Push sessions into NetBox
     print(f"\nCreating {len(sessions)} BGP sessions:")
@@ -207,14 +232,15 @@ def main() -> None:
         local_ip_id = find_iface_ip(nb, s["local_dev"], s["local_ip"])
         remote_ip_id = find_iface_ip(nb, s["remote_dev"], s["remote_ip"])
         if not local_ip_id or not remote_ip_id:
-            print(f"  ✗ {s['name']}: missing IP in NetBox (local={local_ip_id} remote={remote_ip_id})")
+            print(
+                f"  ✗ {s['name']}: missing IP in NetBox (local={local_ip_id} remote={remote_ip_id})"
+            )
             failed += 1
             continue
         if session_exists(base_url, headers, local_ip_id, remote_ip_id):
             skipped += 1
             continue
         local_dev_obj = nb.dcim.devices.get(name=s["local_dev"])
-        remote_dev_obj = nb.dcim.devices.get(name=s["remote_dev"])
         local_asn = device_asn.get(s["local_dev"])
         remote_asn = device_asn.get(s["remote_dev"])
         payload = {
@@ -226,7 +252,7 @@ def main() -> None:
             "device": local_dev_obj.id,
             "site": local_dev_obj.site.id if local_dev_obj.site else None,
             "status": "active",
-            "description": f"{s.get('kind','bgp')} session ({local_asn}↔{remote_asn})",
+            "description": f"{s.get('kind', 'bgp')} session ({local_asn}↔{remote_asn})",
         }
         try:
             result = post_bgp_session(base_url, headers, payload)

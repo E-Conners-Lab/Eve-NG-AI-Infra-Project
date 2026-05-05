@@ -1,10 +1,10 @@
 PLUGINS = [
-    'netbox_bgp',
+    "netbox_bgp",
 ]
 
 PLUGINS_CONFIG = {
-    'netbox_bgp': {
+    "netbox_bgp": {
         # Display device-side BGP sessions in the device tab.
-        'device_ext_page': 'right',
+        "device_ext_page": "right",
     },
 }
