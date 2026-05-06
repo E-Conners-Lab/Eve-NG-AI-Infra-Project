@@ -1,3 +1,11 @@
+{# Crypto suite — see "IPsec algorithm upgrade path" below.
+   Current default (aes-cbc-256/sha256/dh14) is universally supported by C8000v.
+   To upgrade to the modern suite (AES-GCM-256/SHA384/ECP-256), set in NetBox
+   config_context for the tunnel:
+     encryption: aes-gcm-256
+     integrity:  sha384
+     dh_group:   19
+   The strongSwan side already accepts both — see vpn module user_data. -#}
 {% for t in vpn_tunnels %}
 crypto ikev2 proposal AWS_VPN_PROP_{{ loop.index }}
  encryption {{ t.encryption | default('aes-cbc-256') }}
