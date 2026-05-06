@@ -1,0 +1,1061 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Deploy Runbook · Cloud-AWS Hybrid Site</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface2: #1c2333;
+    --surface-hi: #21262d;
+    --border: #30363d;
+    --border-strong: #444c56;
+    --text: #e6edf3;
+    --text-muted: #8b949e;
+    --text-dim: #6b7280;
+    --accent: #58a6ff;
+    --accent-soft: rgba(88,166,255,0.12);
+    --success: #3fb950;
+    --warning: #d29922;
+    --danger: #f85149;
+    --purple: #a855f7;
+    --aws: #ff9900;
+    --code-bg: #0a0e14;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+  code, pre, kbd { font-family: 'SF Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+
+  /* ───────────────── Header ───────────────── */
+  .topbar {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(13,17,23,0.85);
+    backdrop-filter: saturate(180%) blur(8px);
+    border-bottom: 1px solid var(--border);
+  }
+  .topbar-inner {
+    max-width: 1280px; margin: 0 auto;
+    padding: 14px 32px;
+    display: flex; align-items: center; gap: 16px;
+  }
+  .crumb { color: var(--text-muted); font-size: 13px; }
+  .crumb a { color: var(--accent); text-decoration: none; }
+  .crumb a:hover { text-decoration: underline; }
+  .crumb-sep { color: var(--border-strong); margin: 0 6px; }
+  .topbar-title { font-weight: 600; font-size: 14px; }
+  .topbar-spacer { flex: 1; }
+  .topbar-tag {
+    font-size: 11px;
+    color: var(--success);
+    background: rgba(63,185,80,0.12);
+    border: 1px solid rgba(63,185,80,0.3);
+    padding: 3px 9px;
+    border-radius: 999px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  /* ───────────────── Layout ───────────────── */
+  .page {
+    max-width: 1280px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 240px minmax(0, 1fr);
+    gap: 32px;
+    padding: 0 32px;
+  }
+  @media (max-width: 900px) {
+    .page { grid-template-columns: 1fr; padding: 0 20px; }
+    .toc { display: none; }
+  }
+
+  /* ───────────────── TOC ───────────────── */
+  .toc {
+    position: sticky; top: 60px; align-self: start;
+    height: calc(100vh - 60px);
+    padding: 32px 0;
+    overflow-y: auto;
+    scrollbar-width: thin;
+  }
+  .toc-title {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--text-dim); font-weight: 600;
+    margin-bottom: 12px; padding-left: 12px;
+  }
+  .toc-list { list-style: none; }
+  .toc-list a {
+    display: block;
+    padding: 6px 12px;
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 13px;
+    border-left: 2px solid transparent;
+    transition: color .15s, border-color .15s, background .15s;
+  }
+  .toc-list a:hover { color: var(--text); }
+  .toc-list a.active {
+    color: var(--accent);
+    border-left-color: var(--accent);
+    background: var(--accent-soft);
+  }
+  .toc-list .toc-sub {
+    padding-left: 24px;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  /* ───────────────── Content ───────────────── */
+  main { padding: 32px 0 96px; min-width: 0; }
+  .hero { padding: 32px 0 48px; }
+  h1 {
+    font-size: 38px; font-weight: 700; letter-spacing: -0.02em;
+    margin-bottom: 12px;
+  }
+  .hero-sub {
+    font-size: 17px; color: var(--text-muted); max-width: 720px; line-height: 1.55;
+  }
+  .hero-meta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 20px; }
+  .meta-pill {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 12px; border: 1px solid var(--border);
+    border-radius: 999px; font-size: 12px; color: var(--text-muted);
+    background: var(--surface);
+  }
+  .meta-pill strong { color: var(--text); font-weight: 600; }
+  .meta-pill .dot { width: 6px; height: 6px; border-radius: 50%; }
+
+  h2 {
+    font-size: 24px; font-weight: 600; letter-spacing: -0.01em;
+    margin: 56px 0 20px; padding-top: 12px;
+    border-top: 1px solid var(--border);
+    scroll-margin-top: 80px;
+  }
+  h2:first-of-type { margin-top: 0; padding-top: 0; border-top: 0; }
+  h3 { font-size: 17px; font-weight: 600; margin: 24px 0 10px; }
+  p { color: var(--text); margin-bottom: 14px; }
+  p.lede { color: var(--text-muted); }
+
+  /* ───────────────── Code blocks ───────────────── */
+  .code-block {
+    position: relative; margin: 16px 0;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .code-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 14px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+  }
+  .code-header .lang {
+    color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em;
+    font-size: 10px; font-weight: 600;
+  }
+  .code-block pre {
+    padding: 16px;
+    overflow-x: auto;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text);
+  }
+  .copy-btn {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--text-muted); cursor: pointer;
+    padding: 4px 10px; border-radius: 4px;
+    font-size: 11px; font-family: inherit;
+    transition: all .15s;
+  }
+  .copy-btn:hover { color: var(--text); border-color: var(--border-strong); background: var(--surface-hi); }
+  .copy-btn.copied { color: var(--success); border-color: var(--success); }
+
+  code:not(pre code) {
+    background: var(--surface); border: 1px solid var(--border);
+    padding: 1px 6px; border-radius: 3px;
+    font-size: 0.9em; color: var(--accent);
+  }
+
+  /* ───────────────── Step cards ───────────────── */
+  .step {
+    display: grid; grid-template-columns: 56px 1fr;
+    gap: 20px; margin: 20px 0;
+    padding: 24px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    position: relative;
+    transition: border-color .2s;
+  }
+  .step:hover { border-color: var(--border-strong); }
+  .step.done { border-color: rgba(63,185,80,0.4); background: linear-gradient(180deg, rgba(63,185,80,0.04), transparent 30%); }
+  .step.done .step-num { background: var(--success); color: #0d1117; border-color: var(--success); }
+  .step-num {
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    background: var(--surface-hi);
+    border: 1px solid var(--border-strong);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; font-weight: 700;
+    color: var(--accent);
+    transition: all .2s;
+  }
+  .step-body h3 { margin-top: 0; font-size: 18px; }
+  .step-body p { font-size: 14px; }
+  .step-check {
+    position: absolute; top: 24px; right: 24px;
+    width: 22px; height: 22px;
+    border: 1px solid var(--border-strong);
+    border-radius: 5px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+    transition: all .15s;
+    background: var(--surface-hi);
+    color: transparent;
+  }
+  .step-check:hover { border-color: var(--accent); }
+  .step.done .step-check {
+    background: var(--success); border-color: var(--success); color: #0d1117;
+  }
+  .step-progress {
+    display: flex; gap: 6px;
+    margin: 16px 0 24px;
+  }
+  .step-progress > span {
+    flex: 1; height: 4px; border-radius: 2px;
+    background: var(--surface-hi);
+    transition: background .3s;
+  }
+  .step-progress > span.done { background: var(--success); }
+  .step-progress-label {
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 12px; color: var(--text-muted);
+    margin-bottom: 6px;
+  }
+  .step-progress-label .reset {
+    color: var(--text-dim); cursor: pointer; font-size: 11px;
+    border: 1px solid var(--border); padding: 2px 8px; border-radius: 3px;
+    background: transparent; font-family: inherit;
+  }
+  .step-progress-label .reset:hover { color: var(--text); border-color: var(--border-strong); }
+
+  /* ───────────────── Tables ───────────────── */
+  .tbl {
+    width: 100%; border-collapse: collapse;
+    margin: 16px 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    font-size: 13px;
+  }
+  .tbl th, .tbl td {
+    padding: 10px 14px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  .tbl th {
+    background: var(--surface-hi);
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-size: 11px;
+  }
+  .tbl tr:last-child td { border-bottom: 0; }
+  .tbl td.cost-zero { color: var(--success); font-weight: 600; }
+  .tbl td.cost-nonzero { color: var(--warning); }
+
+  /* ───────────────── Verification 4-up ───────────────── */
+  .verify-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 14px; margin: 16px 0;
+  }
+  .verify-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 18px;
+    border-left: 3px solid var(--accent);
+  }
+  .verify-card h4 {
+    font-size: 11px; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--accent);
+    margin-bottom: 4px;
+  }
+  .verify-card .vt { font-size: 15px; font-weight: 600; margin-bottom: 8px; }
+  .verify-card .vd { font-size: 13px; color: var(--text-muted); margin-bottom: 12px; }
+  .verify-card .vc {
+    font-size: 11px; font-family: 'SF Mono', Menlo, monospace;
+    color: var(--text); background: var(--code-bg);
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 8px 10px; word-break: break-all;
+  }
+
+  /* ───────────────── Security grid ───────────────── */
+  .sec-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(320px,1fr));
+    gap: 12px; margin: 16px 0;
+  }
+  .sec-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px;
+    transition: border-color .2s, transform .2s;
+    position: relative;
+  }
+  .sec-card:hover { transform: translateY(-2px); border-color: var(--border-strong); }
+  .sec-card .layer {
+    font-size: 10px; color: var(--text-dim); text-transform: uppercase;
+    letter-spacing: 0.08em; font-weight: 600; margin-bottom: 4px;
+  }
+  .sec-card .heading { font-weight: 600; margin-bottom: 8px; font-size: 14px; }
+  .sec-card .desc { font-size: 12.5px; color: var(--text-muted); line-height: 1.55; }
+  .sec-card.l-secret { border-left: 3px solid var(--purple); }
+  .sec-card.l-input { border-left: 3px solid var(--warning); }
+  .sec-card.l-iam { border-left: 3px solid var(--accent); }
+  .sec-card.l-state { border-left: 3px solid var(--aws); }
+  .sec-card.l-meta { border-left: 3px solid var(--text-muted); }
+  .sec-card.l-net { border-left: 3px solid var(--success); }
+  .sec-card.l-boot { border-left: 3px solid var(--purple); }
+  .sec-card.l-alarm { border-left: 3px solid var(--danger); }
+
+  /* ───────────────── Troubleshooting ───────────────── */
+  .ts-search-wrap {
+    position: relative;
+    margin: 16px 0;
+  }
+  .ts-search {
+    width: 100%;
+    padding: 12px 16px 12px 44px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 14px;
+    font-family: inherit;
+    transition: border-color .15s, background .15s;
+  }
+  .ts-search::placeholder { color: var(--text-dim); }
+  .ts-search:focus {
+    outline: none;
+    border-color: var(--accent);
+    background: var(--surface-hi);
+  }
+  .ts-search-icon {
+    position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+    width: 18px; height: 18px;
+    color: var(--text-dim);
+    pointer-events: none;
+  }
+  .ts-count {
+    font-size: 12px; color: var(--text-muted);
+    margin-bottom: 12px;
+  }
+  .ts-item {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; margin: 10px 0;
+    overflow: hidden;
+    transition: border-color .15s;
+  }
+  .ts-item.hidden { display: none; }
+  .ts-item:hover { border-color: var(--border-strong); }
+  .ts-head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px;
+    padding: 14px 18px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .ts-head:hover { background: var(--surface-hi); }
+  .ts-symptom { font-weight: 500; font-size: 14px; flex: 1; min-width: 0; }
+  .ts-symptom code {
+    background: var(--code-bg);
+    border-color: var(--border);
+    color: var(--accent);
+    font-size: 12px;
+  }
+  .ts-toggle {
+    color: var(--text-dim);
+    flex-shrink: 0;
+    transition: transform .2s;
+  }
+  .ts-item.open .ts-toggle { transform: rotate(90deg); }
+  .ts-body {
+    display: none;
+    padding: 0 18px 18px;
+    border-top: 1px solid var(--border);
+    padding-top: 14px;
+  }
+  .ts-item.open .ts-body { display: block; }
+  .ts-row { display: grid; grid-template-columns: 90px 1fr; gap: 12px; margin-bottom: 8px; font-size: 13px; }
+  .ts-row .lbl { color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.06em; font-size: 11px; padding-top: 2px; }
+  .ts-row .val { color: var(--text); }
+  .ts-row .val.cause { color: var(--text-muted); }
+
+  /* ───────────────── Callouts ───────────────── */
+  .callout {
+    display: flex; gap: 12px;
+    padding: 14px 16px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    margin: 16px 0;
+    font-size: 14px;
+  }
+  .callout-icon {
+    flex-shrink: 0; width: 20px; height: 20px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700;
+    margin-top: 1px;
+  }
+  .callout-info { background: rgba(88,166,255,0.06); border-color: rgba(88,166,255,0.3); }
+  .callout-info .callout-icon { color: var(--accent); }
+  .callout-warn { background: rgba(210,153,34,0.06); border-color: rgba(210,153,34,0.3); }
+  .callout-warn .callout-icon { color: var(--warning); }
+  .callout-danger { background: rgba(248,81,73,0.06); border-color: rgba(248,81,73,0.3); }
+  .callout-danger .callout-icon { color: var(--danger); }
+  .callout strong { color: var(--text); }
+
+  /* Lists */
+  ul, ol { padding-left: 22px; margin-bottom: 14px; }
+  li { margin-bottom: 6px; color: var(--text); }
+  li::marker { color: var(--text-muted); }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="crumb">
+      <a href="../lab-documentation.html">Lab</a>
+      <span class="crumb-sep">/</span>
+      <a href="#">Runbooks</a>
+      <span class="crumb-sep">/</span>
+      <span class="topbar-title">deploy-cloud-aws</span>
+    </div>
+    <div class="topbar-spacer"></div>
+    <span class="topbar-tag">Production-ready</span>
+  </div>
+</header>
+
+<div class="page">
+
+  <!-- ────────── TOC ────────── -->
+  <nav class="toc" id="toc">
+    <div class="toc-title">On this page</div>
+    <ul class="toc-list">
+      <li><a href="#overview" class="active">What this builds</a></li>
+      <li><a href="#prerequisites">Prerequisites</a></li>
+      <li><a href="#cost">Cost expectations</a></li>
+      <li><a href="#setup">One-time setup</a></li>
+      <li><a href="#build">Build sequence</a></li>
+      <li class="toc-sub"><a href="#step-1">1 · Bootstrap state backend</a></li>
+      <li class="toc-sub"><a href="#step-2">2 · Apply AWS side</a></li>
+      <li class="toc-sub"><a href="#step-3">3 · Pull AWS outputs</a></li>
+      <li class="toc-sub"><a href="#step-4">4 · Seed NetBox</a></li>
+      <li class="toc-sub"><a href="#step-5">5 · Regenerate spec + configs</a></li>
+      <li class="toc-sub"><a href="#step-6">6 · Validate (Batfish)</a></li>
+      <li class="toc-sub"><a href="#step-7">7 · Push to dc-ce-1</a></li>
+      <li class="toc-sub"><a href="#step-8">8 · Confirm IKE state</a></li>
+      <li><a href="#verify">Verification — 4 signals</a></li>
+      <li><a href="#reboot">Reboot survival</a></li>
+      <li><a href="#security">Security posture</a></li>
+      <li><a href="#teardown">Teardown</a></li>
+      <li><a href="#troubleshoot">Troubleshooting</a></li>
+      <li><a href="#related">Related docs</a></li>
+    </ul>
+  </nav>
+
+  <!-- ────────── Main ────────── -->
+  <main>
+
+    <!-- ───── Hero ───── -->
+    <section class="hero" id="overview">
+      <h1>Deploy the Cloud-AWS Hybrid Site</h1>
+      <p class="hero-sub">A site-to-site IPsec tunnel from <code>dc-ce-1</code> (Cisco C8000v in EVE-NG) to a self-managed strongSwan EC2 in AWS, plus a scheduled Lambda that watches the tunnel from the AWS side. Eight commands, ~6–8 minutes, free-tier.</p>
+      <div class="hero-meta">
+        <span class="meta-pill"><span class="dot" style="background:var(--success)"></span> <strong>8</strong> commands</span>
+        <span class="meta-pill"><span class="dot" style="background:var(--accent)"></span> ~<strong>6–8</strong> min</span>
+        <span class="meta-pill"><span class="dot" style="background:var(--aws)"></span> Free-tier</span>
+        <span class="meta-pill"><span class="dot" style="background:var(--purple)"></span> IPsec / IKEv2</span>
+        <span class="meta-pill"><span class="dot" style="background:var(--warning)"></span> <strong>16</strong> security findings closed</span>
+      </div>
+
+      <h2 style="margin-top:40px;border-top:0;padding-top:0">What this builds</h2>
+      <ul>
+        <li><strong>AWS side</strong> — t3.micro strongSwan EC2 (Ubuntu 22.04 LTS, IMDSv2-only) with EIP, Secrets Manager-backed PSK, custom SSM document with the <code>swanctl --list-sas</code> command hardcoded, IAM-scoped Lambda monitor with region+account conditions, two CloudWatch alarms via metric-math, SNS email alerts.</li>
+        <li><strong>Lab side</strong> — a <code>cloud_aws</code> site in NetBox, an IPsec block on <code>dc-ce-1</code> rendered from the spec, an MCP tool (<code>cloud_tunnel_health</code>) that reports IKEv2/IPsec state.</li>
+        <li><strong>Pipeline</strong> — push-time PSK injection (<code>scripts/push_configs.py</code>) pulls the secret from AWS Secrets Manager at deploy time so the rendered config in <code>configs/generated/dc-ce-1.cfg</code> stays commit-safe.</li>
+        <li><strong>State backend</strong> — S3 with customer-managed KMS CMK encryption, TLS-only bucket policy, versioned, public access blocked. DynamoDB lock table with PITR enabled.</li>
+      </ul>
+    </section>
+
+    <!-- ───── Prerequisites ───── -->
+    <h2 id="prerequisites">Prerequisites</h2>
+    <ul>
+      <li>AWS account with the free tier active (or budget acceptance). The vpn module fits inside the 12-month free tier; the existing <code>cloud-devops-pipeline</code> dev env runs a NAT Gateway (~$32/mo) and ALB (~$16/mo) — destroy when not in use.</li>
+      <li><code>cloud-devops-pipeline</code> repo cloned, referred to here as <code>$AWS_REPO</code>.</li>
+      <li>Terraform ≥ 1.5, AWS CLI v2, IAM creds with permission to create EC2, EIP, Secrets Manager, IAM, Lambda, CloudWatch, SNS, EventBridge, KMS, SSM (including custom Documents), S3, DynamoDB.</li>
+      <li>Lab is already populated: <code>make generate-spec</code> succeeds against the 21-node baseline; <code>dc-ce-1</code> is reachable via SSH from this host; NetBox is up.</li>
+      <li>A reachable public IP for IKE ingress — the strongSwan SG only allows UDP 500/4500/ESP from this <code>/32</code>. <strong>Validated regex</strong> rejects anything that isn't a literal IPv4 dotted quad.</li>
+    </ul>
+
+    <!-- ───── Cost ───── -->
+    <h2 id="cost">Cost expectations</h2>
+    <table class="tbl">
+      <thead><tr><th>Resource</th><th style="text-align:right">Monthly</th></tr></thead>
+      <tbody>
+        <tr><td>t3.micro strongSwan (12-month free tier)</td><td class="cost-zero" style="text-align:right">$0</td></tr>
+        <tr><td>EIP (attached)</td><td class="cost-zero" style="text-align:right">$0 <span style="color:var(--text-dim)">(only $3.60/mo if detached)</span></td></tr>
+        <tr><td>Lambda @ rate(5 min) ≈ 8.6k invocations</td><td class="cost-zero" style="text-align:right">$0</td></tr>
+        <tr><td>CloudWatch — 2 alarms + custom metrics</td><td class="cost-zero" style="text-align:right">$0</td></tr>
+        <tr><td>SNS email</td><td class="cost-zero" style="text-align:right">$0</td></tr>
+        <tr><td>Secrets Manager</td><td style="text-align:right">$0.40</td></tr>
+        <tr><td>KMS CMK (always charged)</td><td style="text-align:right">$1.00</td></tr>
+        <tr><td>Existing pipeline (NAT GW + ALB)</td><td class="cost-nonzero" style="text-align:right">~$48</td></tr>
+      </tbody>
+    </table>
+
+    <p>Set a $1/mo Budget alarm on first apply (one-time):</p>
+    <div class="code-block">
+      <div class="code-header">
+        <span class="lang">Bash</span>
+        <button class="copy-btn">Copy</button>
+      </div>
+<pre>aws budgets create-budget \
+  --account-id $(aws sts get-caller-identity --query Account --output text) \
+  --budget '{"BudgetName":"vpn-lab-1usd","BudgetLimit":{"Amount":"1","Unit":"USD"},"TimeUnit":"MONTHLY","BudgetType":"COST"}' \
+  --notifications-with-subscribers '[{"Notification":{"NotificationType":"ACTUAL","ComparisonOperator":"GREATER_THAN","Threshold":80},"Subscribers":[{"SubscriptionType":"EMAIL","Address":"YOU@example.com"}]}]'</pre>
+    </div>
+
+    <!-- ───── One-time setup ───── -->
+    <h2 id="setup">One-time setup</h2>
+    <div class="code-block">
+      <div class="code-header">
+        <span class="lang">Bash</span>
+        <button class="copy-btn">Copy</button>
+      </div>
+<pre># 1. Lab side: confirm .env exposes the AWS-coupling vars
+grep -E '^(AWS_REPO|ONPREM_PUBLIC_IP)=' .env || echo "fill these in"
+
+# 2. Export the AWS repo path so `make sync-aws-outputs` can find it
+export AWS_REPO=/Users/&lt;you&gt;/PycharmProjects/cloud-devops-pipeline
+
+# 3. AWS side: confirm CLI auth + region
+aws sts get-caller-identity
+aws configure get region   # should print us-east-1</pre>
+    </div>
+
+    <!-- ───── Build sequence ───── -->
+    <h2 id="build">Build sequence</h2>
+    <p class="lede">The full deploy is <strong>eight commands</strong>, ~6–8 min total. Click the checkbox on each step as you complete it — your progress persists across reloads.</p>
+
+    <div class="step-progress-label">
+      <span><span id="progressDone">0</span> / 8 complete</span>
+      <button class="reset" id="resetProgress">Reset progress</button>
+    </div>
+    <div class="step-progress" id="stepProgress">
+      <span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span><span></span>
+    </div>
+
+    <!-- Step 1 -->
+    <div class="step" id="step-1" data-step="1">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h3>Bootstrap the state backend (one-time per account)</h3>
+        <p>The S3 bucket and DynamoDB lock table that hold Terraform's state can't manage themselves with Terraform — chicken-and-egg. The bootstrap script captures that out-of-band step as code:</p>
+        <div class="code-block">
+          <div class="code-header"><span class="lang">Bash</span><button class="copy-btn">Copy</button></div>
+<pre>bash $AWS_REPO/scripts/bootstrap-state-backend.sh</pre>
+        </div>
+        <p>Idempotent — safe to re-run. Creates a customer-managed KMS CMK with annual rotation, applies SSE-KMS to the state bucket, applies a TLS-only + non-KMS-deny policy, re-asserts versioning + public-access-block, enables Point-In-Time Recovery on the DynamoDB lock table.</p>
+        <div class="callout callout-info">
+          <span class="callout-icon">i</span>
+          <div><strong>Why this matters:</strong> every <code>random_password</code> in the modules — including the IPsec PSK — lands in <code>terraform.tfstate</code> in cleartext. State at rest MUST be CMK-encrypted, not just SSE-S3, so we control the key policy, rotation, and CloudTrail audits per-key.</div>
+        </div>
+      </div>
+      <div class="step-check">✓</div>
+    </div>
+
+    <!-- Step 2 -->
+    <div class="step" id="step-2" data-step="2">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h3>Apply AWS side</h3>
+        <div class="code-block">
+          <div class="code-header"><span class="lang">Bash</span><button class="copy-btn">Copy</button></div>
+<pre>cd $AWS_REPO/terraform/environments/dev
+terraform init   # picks up the kms_key_id in the backend block
+terraform apply \
+  -var enable_vpn=true \
+  -var onprem_public_ip=&lt;your.public.ip&gt; \
+  -var vpn_alert_email=&lt;you@example.com&gt;</pre>
+        </div>
+        <p>Apply finishes when <code>null_resource.strongswan_ready</code> clears (~75 sec on Ubuntu — the gate polls SSM until <code>systemctl is-active strongswan-starter</code> returns <code>active</code>). You'll get an SNS subscription confirmation email — click it. Without confirmation, alerts fire silently.</p>
+        <div class="callout callout-warn">
+          <span class="callout-icon">!</span>
+          <div><strong>Secret in 7-day recovery?</strong> A previous destroy schedules <code>vpn/onprem-psk</code> for deletion. To re-apply within 7 days, force-delete it first:
+            <div class="code-block" style="margin-top:10px">
+              <div class="code-header"><span class="lang">Bash</span><button class="copy-btn">Copy</button></div>
+<pre>aws secretsmanager delete-secret --secret-id vpn/onprem-psk --force-delete-without-recovery</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="step-check">✓</div>
+    </div>
+
+    <!-- Step 3 -->
+    <div class="step" id="step-3" data-step="3">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <h3>Pull AWS outputs into the lab</h3>
+        <div class="code-block">
+          <div class="code-header"><span class="lang">Bash</span><button class="copy-btn">Copy</button></div>
+<pre>cd $LAB_REPO        # back to Eve-NG_Agent
+make sync-aws-outputs</pre>
+        </div>
+        <p>Writes <code>.aws_outputs.json</code> (gitignored — contains the strongSwan EIP and PSK secret ARN, not the secret itself). Then export them into your shell:</p>
+        <div class="code-block">
+          <div class="code-header"><span class="lang">Bash</span><button class="copy-btn">Copy</button></div>
+<pre>export AWS_STRONGSWAN_EIP=$(jq -r .strongswan_eip.value &lt; .aws_outputs.json)
+export AWS_VPN_PSK_SECRET_ARN=$(jq -r .psk_secret_arn.value &lt; .aws_outputs.json)</pre>
+        </div>
+      </div>
+      <div class="step-check">✓</div>
+    </div>
+
+    <!-- Step 4 -->
+    <div class="step" id="step-4" data-step="4">
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <h3>Seed NetBox with the cloud-aws site</h3>
+        <div class="code-block">
+          <div class="code-header"><span class="lang">Bash</span><button class="copy-btn">Copy</button></div>
+<pre>make seed-cloud-aws</pre>
+        </div>
+        <p>Idempotent — safe to re-run after an apply that changed any of the outputs.</p>
+      </div>
+      <div class="step-check">✓</div>
+    </div>
+
+    <!-- Step 5 -->
+    <div class="step" id="step-5" data-step="5">
+      <div class="step-num">5</div>
+      <div class="step-body">
+        <h3>Regenerate spec + configs</h3>
+        <div class="code-block">
+          <div class="code-header"><span class="lang">Bash</span><button class="copy-btn">Copy</button></div>
+<pre>make generate-spec
+make generate-configs</pre>
+        </div>
+        <p>Sanity-check the rendered config carries only the marker — no plaintext PSK leaked through:</p>
+        <div class="code-block">
+          <div class="code-header"><span class="lang">Bash</span><button class="copy-btn">Copy</button></div>
+<pre>grep -c '__AWS_VPN_PSK__' configs/generated/dc-ce-1.cfg   # expect: 1
+grep -c 'pre-shared-key '  configs/generated/dc-ce-1.cfg   # expect: 1</pre>
+        </div>
+      </div>
+      <div class="step-check">✓</div>
+    </div>
+
+    <!-- Step 6 -->
+    <div class="step" id="step-6" data-step="6">
+      <div class="step-num">6</div>
+      <div class="step-body">
+        <h3>Validate (Batfish digital twin)</h3>
+        <div class="code-block">
+          <div class="code-header"><span class="lang">Bash</span><button class="copy-btn">Copy</button></div>
+<pre>make validate-batfish</pre>
+        </div>
+        <div class="callout callout-warn">
+          <span class="callout-icon">!</span>
+          <div><strong>Known coverage gap.</strong> Batfish does not model Cisco IKEv2/IPsec crypto blocks, so a green <code>validate-batfish</code> does NOT confirm the IPsec tunnel will come up. Ground truth comes from <code>cloud_tunnel_health</code> in step 7.</div>
+        </div>
+      </div>
+      <div class="step-check">✓</div>
+    </div>
+
+    <!-- Step 7 -->
+    <div class="step" id="step-7" data-step="7">
+      <div class="step-num">7</div>
+      <div class="step-body">
+        <h3>Push to dc-ce-1</h3>
+        <div class="code-block">
+          <div class="code-header"><span class="lang">Bash</span><button class="copy-btn">Copy</button></div>
+<pre>export API_AUTH_TOKEN=&lt;the-bearer-token-for-the-API&gt;   # only if pushing through API
+make push-configs DEVICE=dc-ce-1</pre>
+        </div>
+        <p><code>scripts/push_configs._inject_aws_psk</code> reads <code>AWS_VPN_PSK_SECRET_ARN</code>, fetches the secret from AWS at this exact moment, substitutes the marker in memory, sends to the device. The plaintext PSK never lands on disk.</p>
+      </div>
+      <div class="step-check">✓</div>
+    </div>
+
+    <!-- Step 8 -->
+    <div class="step" id="step-8" data-step="8">
+      <div class="step-num">8</div>
+      <div class="step-body">
+        <h3>Cross-confirm the tunnel state</h3>
+        <p>Wait ~30 sec for IKE to negotiate, then:</p>
+        <div class="code-block">
+          <div class="code-header"><span class="lang">Bash</span><button class="copy-btn">Copy</button></div>
+<pre>ssh dc-ce-1 'show crypto ikev2 sa | include READY'</pre>
+        </div>
+      </div>
+      <div class="step-check">✓</div>
+    </div>
+
+    <!-- ───── Verification ───── -->
+    <h2 id="verify">Verification — four independent signals</h2>
+    <p class="lede">Every method can lie in a different way. All four should agree before you call it done.</p>
+    <div class="verify-grid">
+      <div class="verify-card">
+        <h4>Signal A · Device</h4>
+        <div class="vt">show crypto on dc-ce-1</div>
+        <div class="vd">IKEv2 SA in READY state, ESP SAs installed inbound + outbound, packet counters incrementing.</div>
+        <div class="vc">ssh dc-ce-1 'show crypto ikev2 sa detail'</div>
+      </div>
+      <div class="verify-card" style="border-left-color:var(--purple)">
+        <h4 style="color:var(--purple)">Signal B · MCP tool</h4>
+        <div class="vt">cloud_tunnel_health (agent's view)</div>
+        <div class="vd">Hand-rolled parser + defensive contract — never returns None; UNKNOWN if parser empty.</div>
+        <div class="vc">cloud_tunnel_health(device="dc-ce-1")</div>
+      </div>
+      <div class="verify-card" style="border-left-color:var(--aws)">
+        <h4 style="color:var(--aws)">Signal C · Lambda</h4>
+        <div class="vt">aws lambda invoke (cloud-side view)</div>
+        <div class="vd">Two-metric design: CheckSucceeded + TunnelEstablished. Composite alarm fires only when Check=1 ∧ Established=0.</div>
+        <div class="vc">aws lambda invoke --function-name cloud-devops-vpn-monitor /tmp/out.json</div>
+      </div>
+      <div class="verify-card" style="border-left-color:var(--success)">
+        <h4 style="color:var(--success)">Signal D · Data plane</h4>
+        <div class="vt">Live RTT integration test</div>
+        <div class="vd">Pings AWS VPC private IP from dc-ce-1's Loopback0; asserts RTT &lt; 500 ms; tears down.</div>
+        <div class="vc">EVE_LIVE=1 pytest tests/integration/test_cloud_tunnel_pipeline.py -v</div>
+      </div>
+    </div>
+
+    <!-- ───── Reboot ───── -->
+    <h2 id="reboot">Reboot survival</h2>
+    <p>Reboot the strongSwan instance and confirm the tunnel returns:</p>
+    <div class="code-block">
+      <div class="code-header"><span class="lang">Bash</span><button class="copy-btn">Copy</button></div>
+<pre>aws ec2 reboot-instances --instance-ids "$INST"
+sleep 180
+ssh dc-ce-1 'show crypto ikev2 sa | include READY'</pre>
+    </div>
+    <p>The <code>vpn-bootstrap.service</code> systemd unit re-fetches the PSK from Secrets Manager and re-renders <code>/etc/swanctl/swanctl.conf</code> on every boot, so reboot is non-destructive.</p>
+
+    <!-- ───── Security ───── -->
+    <h2 id="security">Security posture — what's enforced</h2>
+    <p class="lede">Every fix from the security review is wired in. 16 findings, 16 closures.</p>
+    <div class="sec-grid">
+      <div class="sec-card l-secret">
+        <div class="layer">Push-time PSK</div>
+        <div class="heading">Plaintext PSK never committed</div>
+        <div class="desc"><code>scripts/push_configs._inject_aws_psk</code> fetches at deploy. PSK character set excludes <code>"</code> <code>$</code> <code>`</code> <code>\</code> so heredoc rendering can't be subverted.</div>
+      </div>
+      <div class="sec-card l-input">
+        <div class="layer">Input validation</div>
+        <div class="heading">onprem_public_ip regex-validated</div>
+        <div class="desc">Rejects anything that isn't a literal IPv4 dotted quad — closes the shell-injection surface in user_data.</div>
+      </div>
+      <div class="sec-card l-iam">
+        <div class="layer">Lambda IAM · M3</div>
+        <div class="heading">Custom SSM document, never RunShellScript</div>
+        <div class="desc"><code>ssm:SendCommand</code> ONLY on the strongSwan instance ARN AND a custom <code>aws_ssm_document</code> with <code>swanctl --list-sas</code> hardcoded. AWS-RunShellScript is NOT in the policy — a future code change can't broaden blast radius without a Terraform diff.</div>
+      </div>
+      <div class="sec-card l-iam">
+        <div class="layer">Lambda IAM · L7</div>
+        <div class="heading">Region + account conditions</div>
+        <div class="desc"><code>cloudwatch:GetMetricStatistics</code> and <code>ssm:GetCommandInvocation</code> conditioned on <code>aws:RequestedRegion</code> AND <code>aws:PrincipalAccount</code>. (<code>aws:SourceAccount</code> doesn't apply to direct API calls — that key is for service-to-service.)</div>
+      </div>
+      <div class="sec-card l-iam">
+        <div class="layer">Lambda IAM · parity</div>
+        <div class="heading">IAM_REQUIRED meta-test enforces lockstep</div>
+        <div class="desc"><code>handler.py:IAM_REQUIRED</code> is asserted in lockstep with the Terraform IAM via <code>test_iam_dependencies_documented</code> — AST-walks every <code>boto3.client(...).method(...)</code> call. Drift fails CI.</div>
+      </div>
+      <div class="sec-card l-state">
+        <div class="layer">State at rest</div>
+        <div class="heading">Customer-managed KMS CMK</div>
+        <div class="desc">S3 backend uses CMK with annual rotation. Bucket policy denies non-TLS uploads AND explicitly-non-KMS uploads (StringNotEqualsIfExists). DynamoDB lock table has PITR.</div>
+      </div>
+      <div class="sec-card l-meta">
+        <div class="layer">EC2 metadata</div>
+        <div class="heading">IMDSv2 only</div>
+        <div class="desc"><code>http_tokens = required</code>. Token theft via SSRF is prevented.</div>
+      </div>
+      <div class="sec-card l-net">
+        <div class="layer">Network scoping</div>
+        <div class="heading">strongSwan SG + IPsec TS scoped</div>
+        <div class="desc">SG ingress locked to <code>&lt;onprem_public_ip&gt;/32</code> on UDP 500 / UDP 4500 / ESP. IPsec traffic selectors scoped to VPC CIDR ↔ onprem CIDRs (NOT 0.0.0.0/0) so internet-bound traffic bypasses IPsec — keeps SSM agent connectivity alive.</div>
+      </div>
+      <div class="sec-card l-boot">
+        <div class="layer">Reboot determinism</div>
+        <div class="heading">vpn-bootstrap systemd unit</div>
+        <div class="desc"><code>Type=oneshot, Before=strongswan-starter.service</code> — re-fetches PSK and re-renders <code>swanctl.conf</code> on every boot. PSK rotation just needs a unit restart on this host.</div>
+      </div>
+      <div class="sec-card l-alarm">
+        <div class="layer">Two-metric alarming</div>
+        <div class="heading">Lambda failure ≠ tunnel failure</div>
+        <div class="desc">Composite alarm <code>tunnel_down</code> fires on <code>Check=1 AND Established=0</code> via metric-math. Lambda failure does NOT page on-call. Separate <code>lambda_broken</code> alarm on <code>CheckSucceeded</code> Sum &lt; 1 over 30 min catches the Lambda itself.</div>
+      </div>
+    </div>
+
+    <!-- ───── Teardown ───── -->
+    <h2 id="teardown">Teardown</h2>
+    <div class="code-block">
+      <div class="code-header"><span class="lang">Bash</span><button class="copy-btn">Copy</button></div>
+<pre>cd $AWS_REPO/terraform/environments/dev
+terraform destroy \
+  -var enable_vpn=true \
+  -var onprem_public_ip=&lt;same.IP&gt; \
+  -var vpn_alert_email=&lt;same.email&gt;</pre>
+    </div>
+    <p><strong>Persistent state</strong> (survives destroy):</p>
+    <ul>
+      <li>S3 state bucket + KMS CMK + DynamoDB lock table (created by <code>bootstrap-state-backend.sh</code>)</li>
+      <li>AWS Budget alarm (created manually)</li>
+      <li>The lab side — Eve-NG_Agent repo, NetBox data, dc-ce-1 templates — untouched</li>
+    </ul>
+    <div class="callout callout-info">
+      <span class="callout-icon">i</span>
+      <div>The Secrets Manager secret enters a 7-day recovery window. Re-applying within 7 days requires <code>aws secretsmanager delete-secret --secret-id vpn/onprem-psk --force-delete-without-recovery</code> first.</div>
+    </div>
+
+    <!-- ───── Troubleshooting ───── -->
+    <h2 id="troubleshoot">Troubleshooting</h2>
+    <p class="lede">11 failure modes hit during the actual security-fix re-deploy. Each one tied to a specific cause and one-line fix. Search by symptom, error message, or component.</p>
+
+    <div class="ts-search-wrap">
+      <svg class="ts-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>
+      <input type="text" class="ts-search" id="tsSearch" placeholder="Search symptoms, error messages, components — e.g. AccessDenied, IPsec, KMS, swanctl…">
+    </div>
+    <div class="ts-count" id="tsCount">11 issues</div>
+
+    <div id="tsList">
+      <div class="ts-item" data-keywords="state s3 kms accessdenied bucket policy backend">
+        <div class="ts-head"><span class="ts-symptom"><code>terraform apply</code> errors with <code>AccessDenied: explicit deny in resource-based policy</code> on state upload</span><span class="ts-toggle">›</span></div>
+        <div class="ts-body">
+          <div class="ts-row"><span class="lbl">Cause</span><span class="val cause">Backend block missing <code>kms_key_id</code> — terraform sends <code>AES256</code> which the state-bucket policy denies.</span></div>
+          <div class="ts-row"><span class="lbl">Fix</span><span class="val">Confirm <code>kms_key_id = "alias/cloud-devops-pipeline-tfstate-key"</code> is in the <code>backend "s3"</code> block; re-init with <code>-reconfigure</code>.</span></div>
+        </div>
+      </div>
+      <div class="ts-item" data-keywords="strongswan starter swanctl unit ubuntu cloud-init systemd ready-gate">
+        <div class="ts-head"><span class="ts-symptom"><code>null_resource.strongswan_ready</code> times out at 5 min, cloud-init log shows <code>Failed to enable unit: Unit file strongswan-swanctl.service does not exist</code></span><span class="ts-toggle">›</span></div>
+        <div class="ts-body">
+          <div class="ts-row"><span class="lbl">Cause</span><span class="val cause">Wrong service name — Ubuntu 22.04's <code>strongswan-swanctl</code> package only ships the <code>swanctl</code> binary, not a service unit.</span></div>
+          <div class="ts-row"><span class="lbl">Fix</span><span class="val">Current user_data uses <code>strongswan-starter.service</code>; confirm via <code>cat terraform/modules/vpn/user_data.sh.tftpl | grep enable</code>.</span></div>
+        </div>
+      </div>
+      <div class="ts-item" data-keywords="iam ssm getcommandinvocation accessdenied principalaccount sourceaccount">
+        <div class="ts-head"><span class="ts-symptom">Lambda returns <code>AccessDeniedException ... no identity-based policy allows ssm:GetCommandInvocation</code></span><span class="ts-toggle">›</span></div>
+        <div class="ts-body">
+          <div class="ts-row"><span class="lbl">Cause</span><span class="val cause">IAM condition uses <code>aws:SourceAccount</code> (which doesn't populate for direct API calls).</span></div>
+          <div class="ts-row"><span class="lbl">Fix</span><span class="val">Confirm conditions use <code>aws:PrincipalAccount</code>; <code>terraform apply</code> to update.</span></div>
+        </div>
+      </div>
+      <div class="ts-item" data-keywords="ssm pending undeliverable ipsec traffic selector connectionlost xfrm">
+        <div class="ts-head"><span class="ts-symptom">Lambda returns <code>ssm_error ... command stuck in Pending after 25s</code> then SSM agent goes <code>ConnectionLost</code></span><span class="ts-toggle">›</span></div>
+        <div class="ts-body">
+          <div class="ts-row"><span class="lbl">Cause</span><span class="val cause">IPsec traffic selectors are <code>0.0.0.0/0</code> — kernel xfrm policy captures ALL outbound traffic on the strongSwan box, including SSM agent's TLS connection to <code>ssmmessages.&lt;region&gt;.amazonaws.com</code>.</span></div>
+          <div class="ts-row"><span class="lbl">Fix</span><span class="val">Scope <code>local_ts</code>/<code>remote_ts</code> in <code>swanctl.conf</code> to VPC CIDR ↔ onprem CIDRs; replace EC2.</span></div>
+        </div>
+      </div>
+      <div class="ts-item" data-keywords="push secretsmanager getsecretvalue iam principal psk">
+        <div class="ts-head"><span class="ts-symptom"><code>make push-configs</code> errors <code>IAM principal lacks secretsmanager:GetSecretValue</code></span><span class="ts-toggle">›</span></div>
+        <div class="ts-body">
+          <div class="ts-row"><span class="lbl">Cause</span><span class="val cause">Push host's IAM principal differs from the one that created the secret.</span></div>
+          <div class="ts-row"><span class="lbl">Fix</span><span class="val">Set <code>AWS_PROFILE</code>, or grant <code>secretsmanager:GetSecretValue</code> on <code>vpn/onprem-psk</code> to your principal.</span></div>
+        </div>
+      </div>
+      <div class="ts-item" data-keywords="env push aws_vpn_psk_secret_arn marker">
+        <div class="ts-head"><span class="ts-symptom"><code>make push-configs</code> errors <code>AWS_VPN_PSK_SECRET_ARN is not set</code></span><span class="ts-toggle">›</span></div>
+        <div class="ts-body">
+          <div class="ts-row"><span class="lbl">Cause</span><span class="val cause">Forgot to export from <code>.aws_outputs.json</code>.</span></div>
+          <div class="ts-row"><span class="lbl">Fix</span><span class="val"><code>export AWS_VPN_PSK_SECRET_ARN=$(jq -r .psk_secret_arn.value &lt; .aws_outputs.json)</code></span></div>
+        </div>
+      </div>
+      <div class="ts-item" data-keywords="mcp parser unknown ikev2 sa cloud_tunnel_health">
+        <div class="ts-head"><span class="ts-symptom"><code>cloud_tunnel_health</code> returns <code>ike_state: "UNKNOWN"</code></span><span class="ts-toggle">›</span></div>
+        <div class="ts-body">
+          <div class="ts-row"><span class="lbl">Cause</span><span class="val cause">Hand-rolled parser couldn't match the device output.</span></div>
+          <div class="ts-row"><span class="lbl">Fix</span><span class="val">Capture <code>result["raw"]["ikev2"]</code>, file as a regression sample under <code>tests/fixtures/</code>.</span></div>
+        </div>
+      </div>
+      <div class="ts-item" data-keywords="ikev2 in-neg psk mismatch keyring rotate">
+        <div class="ts-head"><span class="ts-symptom"><code>show crypto ikev2 sa</code> shows <code>IN-NEG</code> then nothing</span><span class="ts-toggle">›</span></div>
+        <div class="ts-body">
+          <div class="ts-row"><span class="lbl">Cause</span><span class="val cause">PSK mismatch between sides.</span></div>
+          <div class="ts-row"><span class="lbl">Fix</span><span class="val">Run <a href="rotate-aws-vpn-psk.md" style="color:var(--accent)">rotate-aws-vpn-psk.md</a> — most common cause is a stale <code>dc-ce-1</code> keyring after redeploying AWS.</span></div>
+        </div>
+      </div>
+      <div class="ts-item" data-keywords="route asymmetric vpc enabling routing">
+        <div class="ts-head"><span class="ts-symptom"><code>show crypto ikev2 sa</code> shows <code>READY</code> but ping fails</span><span class="ts-toggle">›</span></div>
+        <div class="ts-body">
+          <div class="ts-row"><span class="lbl">Cause</span><span class="val cause">Asymmetric routing — return path missing on AWS side.</span></div>
+          <div class="ts-row"><span class="lbl">Fix</span><span class="val"><code>aws ec2 describe-route-tables --route-table-ids &lt;private-rt&gt;</code> — every onprem CIDR should point at the strongSwan ENI.</span></div>
+        </div>
+      </div>
+      <div class="ts-item" data-keywords="lambda check_succeeded zero ssm pending agent unreachable">
+        <div class="ts-head"><span class="ts-symptom">Lambda <code>CheckSucceeded</code> consistently 0, SSM <code>Pending</code></span><span class="ts-toggle">›</span></div>
+        <div class="ts-body">
+          <div class="ts-row"><span class="lbl">Cause</span><span class="val cause">SSM agent on strongSwan unreachable (likely IPsec capture or SG/route issue).</span></div>
+          <div class="ts-row"><span class="lbl">Fix</span><span class="val">SSM-Session into the box (<code>aws ssm start-session --target $INST</code>); check <code>journalctl -u amazon-ssm-agent</code>, <code>swanctl --list-policies</code>.</span></div>
+        </div>
+      </div>
+      <div class="ts-item" data-keywords="alarm tunnel_down false strongswan list-sas">
+        <div class="ts-head"><span class="ts-symptom">Alarm fires for <code>tunnel-down</code> but <code>show crypto</code> says <code>READY</code> on <code>dc-ce-1</code></span><span class="ts-toggle">›</span></div>
+        <div class="ts-body">
+          <div class="ts-row"><span class="lbl">Cause</span><span class="val cause">strongSwan side down or <code>swanctl --list-sas</code> returns empty.</span></div>
+          <div class="ts-row"><span class="lbl">Fix</span><span class="val">SSM-Session, run <code>swanctl --list-sas</code>; check <code>journalctl -u vpn-bootstrap</code> and <code>journalctl -u strongswan-starter</code>.</span></div>
+        </div>
+      </div>
+      <div class="ts-item" data-keywords="secretsmanager scheduled deletion recovery 7-day">
+        <div class="ts-head"><span class="ts-symptom"><code>terraform apply</code> blocked with <code>SecretAlreadyScheduledForDeletion</code></span><span class="ts-toggle">›</span></div>
+        <div class="ts-body">
+          <div class="ts-row"><span class="lbl">Cause</span><span class="val cause">Re-applying within 7 days of destroy.</span></div>
+          <div class="ts-row"><span class="lbl">Fix</span><span class="val"><code>aws secretsmanager delete-secret --secret-id vpn/onprem-psk --force-delete-without-recovery</code> then retry.</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ───── Related ───── -->
+    <h2 id="related">Related</h2>
+    <ul>
+      <li><a href="rotate-aws-vpn-psk.md" style="color:var(--accent)">rotate-aws-vpn-psk.md</a> — manual PSK rotation, with the AWSPREVIOUS rollback path</li>
+      <li><a href="../lab-documentation.html" style="color:var(--accent)">lab-documentation.html</a> — full project visual overview, including the cloud-aws traffic flow</li>
+      <li><code>scripts/bootstrap-state-backend.sh</code> (in cloud-devops-pipeline) — state-backend hardening script (idempotent)</li>
+    </ul>
+
+  </main>
+</div>
+
+<script>
+  // ───────────── Copy buttons ─────────────
+  document.querySelectorAll('.code-block').forEach(block => {
+    const btn = block.querySelector('.copy-btn');
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+      const pre = block.querySelector('pre');
+      const text = pre.innerText;  // unescaped &amp; -> &, etc.
+      navigator.clipboard.writeText(text).then(() => {
+        btn.textContent = 'Copied!';
+        btn.classList.add('copied');
+        setTimeout(() => {
+          btn.textContent = 'Copy';
+          btn.classList.remove('copied');
+        }, 1400);
+      });
+    });
+  });
+
+  // ───────────── Step progress ─────────────
+  const STEP_KEY = 'deploy-cloud-aws.steps';
+  const stepState = JSON.parse(localStorage.getItem(STEP_KEY) || '{}');
+
+  function renderProgress() {
+    let done = 0;
+    document.querySelectorAll('.step').forEach(step => {
+      const n = step.dataset.step;
+      const isDone = !!stepState[n];
+      step.classList.toggle('done', isDone);
+      if (isDone) done++;
+    });
+    document.querySelectorAll('#stepProgress > span').forEach((bar, i) => {
+      bar.classList.toggle('done', !!stepState[String(i + 1)]);
+    });
+    document.getElementById('progressDone').textContent = done;
+  }
+
+  document.querySelectorAll('.step').forEach(step => {
+    const check = step.querySelector('.step-check');
+    if (!check) return;
+    check.addEventListener('click', e => {
+      e.stopPropagation();
+      const n = step.dataset.step;
+      stepState[n] = !stepState[n];
+      localStorage.setItem(STEP_KEY, JSON.stringify(stepState));
+      renderProgress();
+    });
+  });
+
+  document.getElementById('resetProgress').addEventListener('click', () => {
+    Object.keys(stepState).forEach(k => delete stepState[k]);
+    localStorage.setItem(STEP_KEY, JSON.stringify(stepState));
+    renderProgress();
+  });
+
+  renderProgress();
+
+  // ───────────── Troubleshooting search ─────────────
+  const tsItems = Array.from(document.querySelectorAll('.ts-item'));
+  const tsCount = document.getElementById('tsCount');
+  const tsTotal = tsItems.length;
+
+  function renderCount(visible) {
+    if (visible === tsTotal) tsCount.textContent = `${tsTotal} issues`;
+    else tsCount.textContent = `${visible} of ${tsTotal} issues`;
+  }
+  renderCount(tsTotal);
+
+  document.getElementById('tsSearch').addEventListener('input', e => {
+    const q = e.target.value.toLowerCase().trim();
+    let visible = 0;
+    tsItems.forEach(item => {
+      if (!q) {
+        item.classList.remove('hidden');
+        visible++;
+        return;
+      }
+      const kw = item.dataset.keywords || '';
+      const text = item.textContent.toLowerCase();
+      const match = kw.includes(q) || text.includes(q);
+      item.classList.toggle('hidden', !match);
+      if (match) visible++;
+    });
+    renderCount(visible);
+  });
+
+  // Click anywhere on header to expand
+  document.querySelectorAll('.ts-head').forEach(head => {
+    head.addEventListener('click', () => head.parentElement.classList.toggle('open'));
+  });
+
+  // ───────────── TOC scroll-spy ─────────────
+  const tocLinks = Array.from(document.querySelectorAll('.toc-list a'));
+  const sections = tocLinks
+    .map(a => document.getElementById(a.getAttribute('href').slice(1)))
+    .filter(Boolean);
+
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const id = entry.target.id;
+        tocLinks.forEach(a => {
+          a.classList.toggle('active', a.getAttribute('href') === '#' + id);
+        });
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+
+  sections.forEach(s => observer.observe(s));
+</script>
+
+</body>
+</html>
