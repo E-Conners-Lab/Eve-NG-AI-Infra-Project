@@ -23,18 +23,20 @@ import yaml
 # Site slugs this generator cares about.
 logger = logging.getLogger(__name__)
 
-SITE_SLUGS = ("dc-east", "branch-01", "dr-west")
+SITE_SLUGS = ("dc-east", "branch-01", "dr-west", "cloud-aws")
 
 # Slug-to-spec-key mapping (NetBox hyphens → spec underscores).
 SITE_KEY_MAP = {
     "dc-east": "dc_east",
     "branch-01": "branch_01",
     "dr-west": "dr_west",
+    "cloud-aws": "cloud_aws",
 }
 
 WAN_ROLES = ("ce", "pe")
 SECURITY_ROLES = ("firewall",)
 HOST_ROLE = "host"
+CLOUD_VPN_ROLE = "cloud-vpn"
 
 
 def generate_spec(api: object) -> dict:
@@ -251,11 +253,28 @@ def generate_spec(api: object) -> dict:
                 }
         return {}
 
+    # 6b. Build cloud site (vpn_tunnels live in any cloud-vpn device's config_context)
+    def _build_cloud_site(devs: list) -> dict:
+        tunnels: list[dict] = []
+        for dev in devs:
+            if dev.role.slug != CLOUD_VPN_ROLE:
+                continue
+            for tunnel in dev.config_context.get("vpn_tunnels", []) or []:
+                tunnels.append(tunnel)
+        return {
+            "devices": [_device(d) for d in devs],
+            "vpn_tunnels": tunnels,
+        }
+
     # 7. Assemble sites
     sites_spec: dict = {}
     for site_slug, spec_key in SITE_KEY_MAP.items():
         devs = site_devices.get(site_slug, [])
         if not devs:
+            continue
+
+        if spec_key == "cloud_aws":
+            sites_spec[spec_key] = _build_cloud_site(devs)
             continue
 
         site_entry: dict = {"devices": [_device(d) for d in devs]}
@@ -347,10 +366,12 @@ def generate_spec(api: object) -> dict:
         boundary = ctx.get("agent_boundary", "excluded")
         if boundary == "managed":
             managed.append(dev.name)
-            for obs_iface in ctx.get("observed_interfaces", []):
-                observed.append(f"{dev.name}:{obs_iface}")
         else:
             excluded.append(dev.name)
+        # Observed interfaces are collected regardless of boundary — an excluded
+        # device can still expose interfaces the agent watches (e.g. dc-ce-1:Tunnel0).
+        for obs_iface in ctx.get("observed_interfaces", []) or []:
+            observed.append(f"{dev.name}:{obs_iface}")
 
     agent_spec: dict = {
         "boundary": {

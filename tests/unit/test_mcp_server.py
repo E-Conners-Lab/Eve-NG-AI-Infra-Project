@@ -676,3 +676,101 @@ class TestGetBgpPrefix:
             result = _run_bgp_prefix("dc-fw-1", "10.0.0.1")
         assert "error" in result
         assert "fortigate" in result["error"].lower()
+
+
+# ---------------------------------------------------------------------------
+# cloud_tunnel_health tool
+# ---------------------------------------------------------------------------
+class TestCloudTunnelHealth:
+    """cloud_tunnel_health must surface IKEv2/IPsec state — never None."""
+
+    SAMPLE_IKEV2_READY = (
+        " IPv4 Crypto IKEv2 SA\n"
+        "\n"
+        "Tunnel-id Local                Remote               fvrf/ivrf            Status\n"
+        "1         172.16.0.101/500     203.0.113.10/500     none/none            READY\n"
+        "      Encr: AES-CBC, keysize: 256, PRF: SHA256, Hash: SHA256, "
+        "DH Grp:14, Auth sign: PSK, Auth verify: PSK\n"
+        "      Life/Active Time: 86400/3024 sec\n"
+    )
+
+    SAMPLE_IPSEC_INSTALLED = (
+        "interface: Tunnel0\n"
+        "    Crypto map tag: AWS_VPN_IPS_1, local addr 172.16.0.101\n"
+        "\n"
+        "   #pkts encaps: 12345, #pkts encrypt: 12345, #pkts digest: 12345\n"
+        "   #pkts decaps: 67890, #pkts decrypt: 67890, #pkts verify: 67890\n"
+        "\n"
+        "     inbound esp sas:\n"
+        "      spi: 0xABCDEF12(2882400018)\n"
+        "        transform: esp-aes 256 esp-sha256-hmac\n"
+        "\n"
+        "     outbound esp sas:\n"
+        "      spi: 0x12ABCDEF(312456431)\n"
+        "        transform: esp-aes 256 esp-sha256-hmac\n"
+    )
+
+    @staticmethod
+    def _spec_with_dc_ce1() -> dict:
+        return {
+            "sites": {},
+            "wan_transport": {
+                "devices": [{"name": "dc-ce-1", "platform": "cisco_iosxe", "role": "ce"}]
+            },
+            "security": {},
+        }
+
+    def test_parses_ikev2_ready(self) -> None:
+        """Sample READY output must yield ike_state='READY' and INSTALLED ESP."""
+        from mcp_server import _run_cloud_tunnel_health
+
+        conn = MagicMock()
+        conn.send_command.side_effect = [self.SAMPLE_IKEV2_READY, self.SAMPLE_IPSEC_INSTALLED]
+
+        with (
+            patch("mcp_server._load_spec", return_value=self._spec_with_dc_ce1()),
+            patch(
+                "mcp_server._load_creds",
+                return_value=MagicMock(device_username="u", device_password="p"),
+            ),
+            patch("agent.runner._connect", return_value=conn),
+            patch(
+                "scripts.bootstrap_config.get_mgmt_ips",
+                return_value={"dc-ce-1": "192.168.1.10"},
+            ),
+        ):
+            result = _run_cloud_tunnel_health(device="dc-ce-1")
+
+        assert result["device"] == "dc-ce-1"
+        assert result["ike_state"] == "READY"
+        assert result["esp_state"] == "INSTALLED"
+        assert result["peer"] == "203.0.113.10"
+        assert result["encrypted_packets"] == 12345
+        assert result["decrypted_packets"] == 67890
+        assert result["dh_group"] == 14
+
+    def test_returns_unknown_on_parser_failure(self) -> None:
+        """Empty SSH output must yield ike_state='UNKNOWN' (not None) — defensive contract."""
+        from mcp_server import _run_cloud_tunnel_health
+
+        conn = MagicMock()
+        conn.send_command.side_effect = ["", ""]
+
+        with (
+            patch("mcp_server._load_spec", return_value=self._spec_with_dc_ce1()),
+            patch(
+                "mcp_server._load_creds",
+                return_value=MagicMock(device_username="u", device_password="p"),
+            ),
+            patch("agent.runner._connect", return_value=conn),
+            patch(
+                "scripts.bootstrap_config.get_mgmt_ips",
+                return_value={"dc-ce-1": "192.168.1.10"},
+            ),
+        ):
+            result = _run_cloud_tunnel_health(device="dc-ce-1")
+
+        assert result["ike_state"] == "UNKNOWN"
+        assert result["esp_state"] == "UNKNOWN"
+        assert result["peer"] is None
+        assert result["device"] == "dc-ce-1"

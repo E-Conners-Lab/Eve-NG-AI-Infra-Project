@@ -32,6 +32,9 @@ Thumbs.db
 *.pem
 *.key
 credentials.json
+# Terraform output dump from cloud-devops-pipeline (used by populate_cloud_aws);
+# contains the strongSwan EIP and PSK secret ARN.
+.aws_outputs.json
 
 # Operational logs (regenerable, grow without bound)
 logs/*.jsonl

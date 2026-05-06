@@ -6,6 +6,14 @@ reachability, and route propagation before configs are pushed to live devices.
 Requires a running Batfish server (Docker). Host is read from BATFISH_HOST
 env var (default: localhost).
 
+Coverage gap — IPsec/IKEv2: Batfish does not model Cisco IKEv2/IPsec crypto
+blocks (``crypto ikev2 proposal/policy/keyring/profile``, ``crypto ipsec
+transform-set/profile``, ``tunnel protection ipsec profile``). The IPsec block
+emitted by ``templates/cisco/ipsec_tunnel.j2`` is effectively skipped during
+validation here — a green ``validate-batfish`` does NOT confirm the IPsec
+tunnel will come up. Use the MCP ``cloud_tunnel_health`` tool against the live
+device for ground-truth IKEv2/IPsec state instead.
+
 Usage:
     python -m batfish.validate
     python -m batfish.validate --strict

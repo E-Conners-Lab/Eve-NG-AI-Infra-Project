@@ -298,6 +298,96 @@ class TestFortiGateConfig:
 
 
 # ---------------------------------------------------------------------------
+# CE IPsec tunnel — cloud_aws site augmentation
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def cloud_spec(spec: dict) -> dict:
+    """Existing live spec + an in-memory cloud_aws site with one IPsec tunnel on dc-ce-1.
+
+    Used until task 6 seeds NetBox so the live spec contains cloud_aws naturally.
+    """
+    import copy
+
+    s = copy.deepcopy(spec)
+    s["sites"]["cloud_aws"] = {
+        "devices": [{"name": "aws-vpn-1", "role": "cloud-vpn", "platform": "linux"}],
+        "vpn_tunnels": [
+            {
+                "name": "aws-tunnel-1",
+                "tunnel_type": "ipsec",
+                "local_device": "dc-ce-1",
+                "local_interface": "Tunnel0",
+                "local_inner_ip": "169.254.10.1/30",
+                "remote_endpoint": "203.0.113.10",
+                "remote_inner_ip": "169.254.10.2/30",
+                "psk_secret_ref": (
+                    "arn:aws:secretsmanager:us-east-1:123456789012:secret:vpn/onprem-psk-AbCdEf"
+                ),
+                "routed_prefixes": ["10.0.64.0/20", "10.0.80.0/20"],
+                "tunnel_source": "GigabitEthernet1",
+                "ike_version": 2,
+                "dh_group": 14,
+                "encryption": "aes-cbc-256",
+                "integrity": "sha256",
+            }
+        ],
+    }
+    s["agent"]["boundary"]["excluded"].append("aws-vpn-1")
+    s["agent"]["boundary"]["observed"].append("dc-ce-1:Tunnel0")
+    return s
+
+
+class TestCEIPsecConfig:
+    """dc-ce-1 rendered IOS-XE config must contain the IPsec tunnel block when cloud_aws exists."""
+
+    def test_ipsec_proposal_rendered(self, cloud_spec: dict) -> None:
+        """IKEv2 proposal block must be present with the expected name."""
+        config = _render_device(cloud_spec, "dc-ce-1")
+        assert "crypto ikev2 proposal AWS_VPN_PROP_1" in config
+
+    def test_tunnel_interface_rendered(self, cloud_spec: dict) -> None:
+        """Tunnel0 interface must use IPsec mode and bind to the IPsec profile."""
+        config = _render_device(cloud_spec, "dc-ce-1")
+        assert "interface Tunnel0" in config
+        assert "tunnel mode ipsec ipv4" in config
+        assert "tunnel protection ipsec profile AWS_VPN_IPS_1" in config
+
+    def test_psk_marker_not_inlined(self, cloud_spec: dict) -> None:
+        """Rendered config must contain only the placeholder marker, never plaintext PSK material.
+
+        Push-time injection (scripts/push_configs._inject_aws_psk) replaces the marker.
+        """
+        config = _render_device(cloud_spec, "dc-ce-1")
+        assert "__AWS_VPN_PSK__" in config
+        assert "pre-shared-key __AWS_VPN_PSK__" in config
+        # The actual ARN must not appear in the rendered config — only the marker.
+        # (We're not checking for hex blobs; we're checking the keyring is marker-bound.)
+        # Multiple occurrences of "pre-shared-key" are fine — but each must use the marker.
+        for line in config.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("pre-shared-key "):
+                assert stripped == "pre-shared-key __AWS_VPN_PSK__", (
+                    f"PSK line not bound to marker: {stripped!r}"
+                )
+
+    def test_static_route_to_vpc(self, cloud_spec: dict) -> None:
+        """Both VPC private prefixes must have static routes pointing at Tunnel0."""
+        config = _render_device(cloud_spec, "dc-ce-1")
+        assert "ip route 10.0.64.0 255.255.240.0 Tunnel0" in config
+        assert "ip route 10.0.80.0 255.255.240.0 Tunnel0" in config
+
+    def test_aws_vpn_1_no_config_emitted(self, cloud_spec: dict) -> None:
+        """render_all_configs must skip aws-vpn-1 (cloud-vpn role excluded)."""
+        from generator.render_configs import get_all_network_devices
+
+        devices = get_all_network_devices(cloud_spec)
+        names = {d["name"] for d in devices}
+        assert "aws-vpn-1" not in names
+
+
+# ---------------------------------------------------------------------------
 # Test 7: No hardcoded IPs
 # ---------------------------------------------------------------------------
 class TestNoHardcodedValues:

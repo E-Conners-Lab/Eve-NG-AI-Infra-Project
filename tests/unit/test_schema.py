@@ -137,6 +137,42 @@ class TestValidSpecs:
         }
         validate(instance=multi_site, schema=schema)
 
+    def test_cloud_aws_site_validates(self, schema: dict, minimal_valid_spec: dict) -> None:
+        """A cloud_aws site with a vpn_tunnel must validate."""
+        spec = {
+            **minimal_valid_spec,
+            "sites": {
+                **minimal_valid_spec["sites"],
+                "cloud_aws": {
+                    "devices": [
+                        {
+                            "name": "aws-vpn-1",
+                            "role": "cloud-vpn",
+                            "platform": "linux",
+                        }
+                    ],
+                    "vpn_tunnels": [
+                        {
+                            "name": "aws-tunnel-1",
+                            "tunnel_type": "ipsec",
+                            "local_device": "dc-ce-1",
+                            "local_interface": "Tunnel0",
+                            "local_inner_ip": "169.254.10.1/30",
+                            "remote_endpoint": "203.0.113.10",
+                            "remote_inner_ip": "169.254.10.2/30",
+                            "psk_secret_ref": (
+                                "arn:aws:secretsmanager:us-east-1:"
+                                "123456789012:secret:vpn/onprem-psk-AbCdEf"
+                            ),
+                            "routed_prefixes": ["10.0.64.0/20", "10.0.80.0/20"],
+                            "tunnel_source": "GigabitEthernet1",
+                        }
+                    ],
+                },
+            },
+        }
+        validate(instance=spec, schema=schema)
+
     def test_spec_with_agent_thresholds(self, schema: dict, minimal_valid_spec: dict) -> None:
         """Agent thresholds must validate when present."""
         spec = {
@@ -226,6 +262,65 @@ class TestInvalidSpecs:
         minimal_valid_spec["sites"]["dc_east"]["devices"] = []
         with pytest.raises(ValidationError):
             validate(instance=minimal_valid_spec, schema=schema)
+
+    def test_vpn_tunnel_missing_psk_secret_ref_fails(
+        self, schema: dict, minimal_valid_spec: dict
+    ) -> None:
+        """vpn_tunnel without psk_secret_ref must fail validation."""
+        spec = {
+            **minimal_valid_spec,
+            "sites": {
+                **minimal_valid_spec["sites"],
+                "cloud_aws": {
+                    "devices": [{"name": "aws-vpn-1", "role": "cloud-vpn", "platform": "linux"}],
+                    "vpn_tunnels": [
+                        {
+                            "name": "aws-tunnel-1",
+                            "tunnel_type": "ipsec",
+                            "local_device": "dc-ce-1",
+                            "local_interface": "Tunnel0",
+                            "local_inner_ip": "169.254.10.1/30",
+                            "remote_endpoint": "203.0.113.10",
+                            "remote_inner_ip": "169.254.10.2/30",
+                            "routed_prefixes": ["10.0.64.0/20"],
+                            "tunnel_source": "GigabitEthernet1",
+                        }
+                    ],
+                },
+            },
+        }
+        with pytest.raises(ValidationError, match="psk_secret_ref"):
+            validate(instance=spec, schema=schema)
+
+    def test_invalid_tunnel_type_fails(self, schema: dict, minimal_valid_spec: dict) -> None:
+        """vpn_tunnel.tunnel_type must be 'ipsec' (gre and others rejected)."""
+        spec = {
+            **minimal_valid_spec,
+            "sites": {
+                **minimal_valid_spec["sites"],
+                "cloud_aws": {
+                    "devices": [{"name": "aws-vpn-1", "role": "cloud-vpn", "platform": "linux"}],
+                    "vpn_tunnels": [
+                        {
+                            "name": "aws-tunnel-1",
+                            "tunnel_type": "gre",
+                            "local_device": "dc-ce-1",
+                            "local_interface": "Tunnel0",
+                            "local_inner_ip": "169.254.10.1/30",
+                            "remote_endpoint": "203.0.113.10",
+                            "remote_inner_ip": "169.254.10.2/30",
+                            "psk_secret_ref": (
+                                "arn:aws:secretsmanager:us-east-1:123456789012:secret:x"
+                            ),
+                            "routed_prefixes": ["10.0.64.0/20"],
+                            "tunnel_source": "GigabitEthernet1",
+                        }
+                    ],
+                },
+            },
+        }
+        with pytest.raises(ValidationError):
+            validate(instance=spec, schema=schema)
 
     def test_invalid_firewall_action_fails(self, schema: dict, minimal_valid_spec: dict) -> None:
         """Security policy action must be allow, deny, or inspect."""

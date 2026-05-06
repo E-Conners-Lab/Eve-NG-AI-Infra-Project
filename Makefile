@@ -1,6 +1,7 @@
 .PHONY: test lint validate generate-spec generate-configs validate-configs \
        generate-testbed bootstrap-mgmt push-configs test-reachability deploy \
        build-snapshot validate-batfish chaos-test deploy-safe \
+       sync-aws-outputs seed-cloud-aws \
        install dev-install clean
 
 # Default target
@@ -90,8 +91,27 @@ build-snapshot:
 	python -m batfish.snapshot
 
 # Batfish pre-deploy validation (requires Batfish Docker container running)
+#
+# IPsec gap: Batfish does NOT model Cisco IKEv2/IPsec crypto blocks. The IPsec
+# section in dc-ce-1.cfg is effectively skipped during validation. Ground truth
+# for tunnel health comes from the MCP cloud_tunnel_health tool, not Batfish.
 validate-batfish: build-snapshot
 	python -m batfish.validate
+
+# Pull AWS Terraform outputs into .aws_outputs.json for the cloud-aws seed step.
+# Requires AWS_REPO env var pointing at the cloned cloud-devops-pipeline repo.
+sync-aws-outputs:
+	@if [ -z "$$AWS_REPO" ]; then \
+		echo "ERROR: AWS_REPO is not set. Point it at the cloud-devops-pipeline repo path." >&2; \
+		exit 1; \
+	fi
+	terraform -chdir=$$AWS_REPO/terraform/environments/dev output -json > .aws_outputs.json
+	@echo "Wrote $$(pwd)/.aws_outputs.json"
+
+# Seed NetBox with the cloud-aws site + IPsec tunnel data on dc-ce-1.
+# Run after sync-aws-outputs. Idempotent.
+seed-cloud-aws:
+	python -m scripts.populate_cloud_aws
 
 # Chaos testing — inject faults, verify agent detection, rollback (requires live devices)
 chaos-test:

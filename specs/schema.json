@@ -37,7 +37,8 @@
       "properties": {
         "dc_east": { "$ref": "#/$defs/site_dc" },
         "branch_01": { "$ref": "#/$defs/site_branch" },
-        "dr_west": { "$ref": "#/$defs/site_dr" }
+        "dr_west": { "$ref": "#/$defs/site_dr" },
+        "cloud_aws": { "$ref": "#/$defs/site_cloud" }
       }
     },
     "wan_transport": {
@@ -145,7 +146,7 @@
         "name": { "type": "string", "minLength": 1 },
         "role": {
           "type": "string",
-          "enum": ["spine", "leaf", "border-leaf", "ce", "pe", "firewall", "host"]
+          "enum": ["spine", "leaf", "border-leaf", "ce", "pe", "firewall", "host", "cloud-vpn"]
         },
         "platform": {
           "type": "string",
@@ -309,6 +310,60 @@
           "type": "array",
           "items": { "$ref": "#/$defs/link" }
         }
+      }
+    },
+    "site_cloud": {
+      "type": "object",
+      "required": ["devices", "vpn_tunnels"],
+      "properties": {
+        "devices": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/device" },
+          "minItems": 1
+        },
+        "vpn_tunnels": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/vpn_tunnel" },
+          "minItems": 1
+        },
+        "links": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/link" }
+        }
+      }
+    },
+    "vpn_tunnel": {
+      "type": "object",
+      "required": [
+        "name",
+        "tunnel_type",
+        "local_device",
+        "local_interface",
+        "local_inner_ip",
+        "remote_endpoint",
+        "remote_inner_ip",
+        "psk_secret_ref",
+        "routed_prefixes"
+      ],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "tunnel_type": { "type": "string", "enum": ["ipsec"] },
+        "local_device": { "type": "string", "minLength": 1 },
+        "local_interface": { "type": "string", "minLength": 1 },
+        "local_inner_ip": { "$ref": "#/$defs/ipv4_address" },
+        "remote_endpoint": { "$ref": "#/$defs/ipv4_address" },
+        "remote_inner_ip": { "$ref": "#/$defs/ipv4_address" },
+        "psk_secret_ref": { "type": "string", "minLength": 1 },
+        "routed_prefixes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ipv4_address" },
+          "minItems": 1
+        },
+        "tunnel_source": { "type": "string" },
+        "ike_version": { "type": "integer", "enum": [2], "default": 2 },
+        "dh_group": { "type": "integer", "minimum": 1, "default": 14 },
+        "encryption": { "type": "string", "default": "aes-cbc-256" },
+        "integrity": { "type": "string", "default": "sha256" }
       }
     },
     "security_zone_config": {

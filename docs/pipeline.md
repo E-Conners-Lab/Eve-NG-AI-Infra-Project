@@ -74,3 +74,34 @@ lint → schema-validation → generator → config-gen → unit-tests + batfish
 ```
 CI → batfish-gate → push-configs → reachability → agent-validation
 ```
+
+## Hybrid Cloud (cloud-aws)
+
+The pipeline above covers the on-prem 21-node baseline. A fourth optional
+site, `cloud-aws`, terminates an IPsec tunnel from `dc-ce-1` to a self-managed
+strongSwan EC2 in AWS. It plugs into the same flow with two extra steps and
+one push-time PSK substitution:
+
+```
+terraform apply (cloud-devops-pipeline, enable_vpn=true)
+  │
+  ▼
+make sync-aws-outputs ──► .aws_outputs.json
+  │
+  ▼
+make seed-cloud-aws ──► NetBox (cloud-aws site, dc-ce-1 vpn_tunnels)
+  │
+  ▼  (then the standard flow continues)
+make generate-spec → generate-configs → validate-batfish → push-configs DEVICE=dc-ce-1
+                                                              │
+                                            scripts/push_configs._inject_aws_psk
+                                            replaces __AWS_VPN_PSK__ at push time
+```
+
+Full deploy sequence: see [docs/runbooks/deploy-cloud-aws.md](runbooks/deploy-cloud-aws.md).
+PSK rotation: see [docs/runbooks/rotate-aws-vpn-psk.md](runbooks/rotate-aws-vpn-psk.md).
+
+**Batfish caveat**: Batfish does not model Cisco IKEv2/IPsec crypto blocks, so a
+green `validate-batfish` does not confirm the IPsec tunnel will come up. Ground
+truth for tunnel health comes from the MCP `cloud_tunnel_health` tool against
+the live device, not from Batfish.

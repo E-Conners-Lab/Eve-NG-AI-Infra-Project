@@ -832,6 +832,106 @@ class TestReachabilityMatrix:
         assert sum([has_dc, has_branch, has_dr]) >= 2, "Matrix must span multiple sites"
 
 
+def _build_cloud_mock_api() -> MagicMock:
+    """Mock API with the cloud-aws site, aws-vpn-1, and dc-ce-1 carrying Tunnel0+observed.
+
+    Built fresh (does not mutate the module-level ALL_DEVICES) so other tests stay isolated.
+    """
+    site_cloud = _make_site(4, "Cloud-AWS", "cloud-aws")
+
+    aws_vpn_1 = _make_device(
+        22,
+        "aws-vpn-1",
+        "cloud-aws",
+        "cloud-vpn",
+        "linux",
+        config_context={
+            "agent_boundary": "excluded",
+            "vpn_tunnels": [
+                {
+                    "name": "aws-tunnel-1",
+                    "tunnel_type": "ipsec",
+                    "local_device": "dc-ce-1",
+                    "local_interface": "Tunnel0",
+                    "local_inner_ip": "169.254.10.1/30",
+                    "remote_endpoint": "203.0.113.10",
+                    "remote_inner_ip": "169.254.10.2/30",
+                    "psk_secret_ref": (
+                        "arn:aws:secretsmanager:us-east-1:123456789012:secret:vpn/onprem-psk-AbCdEf"
+                    ),
+                    "routed_prefixes": ["10.0.64.0/20", "10.0.80.0/20"],
+                    "tunnel_source": "GigabitEthernet1",
+                }
+            ],
+        },
+    )
+
+    # Fresh dc-ce-1 carrying observed_interfaces (don't mutate the global DC_CE_1)
+    dc_ce_1_cloud = _make_device(
+        11,
+        "dc-ce-1",
+        "dc-east",
+        "ce",
+        "cisco_iosxe",
+        config_context={
+            "agent_boundary": "excluded",
+            "bgp_config": {"asn": 65100},
+            "observed_interfaces": ["Tunnel0"],
+        },
+        custom_fields={"bgp_asn": 65100},
+    )
+
+    devices = [d for d in ALL_DEVICES if d.id != 11] + [dc_ce_1_cloud, aws_vpn_1]
+
+    tunnel0 = _make_interface(31, "Tunnel0", "dc-ce-1", 11, description="to-aws-strongswan")
+    interfaces = ALL_INTERFACES + [tunnel0]
+
+    api = MagicMock()
+    api.dcim.sites.all.return_value = [SITE_DC_EAST, SITE_BRANCH, SITE_DR_WEST, site_cloud]
+    api.dcim.devices.all.return_value = devices
+    api.dcim.interfaces.all.return_value = interfaces
+    api.ipam.ip_addresses.all.return_value = ALL_IPS
+    api.ipam.prefixes.all.return_value = ALL_PREFIXES
+    api.dcim.cables.all.return_value = ALL_CABLES
+    return api
+
+
+@pytest.fixture
+def cloud_mock_api() -> MagicMock:
+    """Cloud-aware mock API — extends the base 21-node lab with cloud-aws."""
+    return _build_cloud_mock_api()
+
+
+class TestCloudSiteGeneration:
+    """Generator must emit a cloud_aws site with vpn_tunnels and update boundaries."""
+
+    def test_emits_cloud_aws_site(self, cloud_mock_api: MagicMock) -> None:
+        """sites.cloud_aws.vpn_tunnels[0].remote_endpoint must match the fixture."""
+        from generator.netbox_to_spec import generate_spec
+
+        spec = generate_spec(cloud_mock_api)
+        assert "cloud_aws" in spec["sites"]
+        tunnels = spec["sites"]["cloud_aws"]["vpn_tunnels"]
+        assert len(tunnels) == 1
+        assert tunnels[0]["remote_endpoint"] == "203.0.113.10"
+        assert tunnels[0]["local_device"] == "dc-ce-1"
+        assert tunnels[0]["tunnel_type"] == "ipsec"
+
+    def test_aws_vpn_1_in_excluded_boundary(self, cloud_mock_api: MagicMock) -> None:
+        """aws-vpn-1 must land in agent.boundary.excluded."""
+        from generator.netbox_to_spec import generate_spec
+
+        spec = generate_spec(cloud_mock_api)
+        assert "aws-vpn-1" in spec["agent"]["boundary"]["excluded"]
+
+    def test_dc_ce1_tunnel0_in_observed(self, cloud_mock_api: MagicMock) -> None:
+        """dc-ce-1:Tunnel0 must land in observed (even though dc-ce-1 itself is excluded)."""
+        from generator.netbox_to_spec import generate_spec
+
+        spec = generate_spec(cloud_mock_api)
+        assert "dc-ce-1:Tunnel0" in spec["agent"]["boundary"]["observed"]
+
+
 class TestGeneratorRendererContract:
     """Generator must produce interface data that the renderer can consume."""
 

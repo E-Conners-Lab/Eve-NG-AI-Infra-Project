@@ -581,6 +581,103 @@ async def get_bgp_prefix(device: str, prefix: str) -> dict:
     return await _run_with_device_lock(device, _run_bgp_prefix, device, prefix)
 
 
+# ── Tool: cloud_tunnel_health ──
+
+
+def _run_cloud_tunnel_health(device: str = "dc-ce-1") -> dict:
+    """SSH to a CE, parse IKEv2 + IPsec state, return structured tunnel health.
+
+    Defensive return contract: ``ike_state`` and ``esp_state`` are always strings,
+    never ``None``. If the parser yields no tunnels (empty/garbled output, command
+    rejected), both fields are ``"UNKNOWN"`` so the agent can distinguish
+    "could not check" from "tunnel down".
+    """
+    from agent.runner import NETMIKO_DEVICE_TYPE, _connect, _find_device_in_spec
+    from agent.skills.cloud_tunnel_health.skill import parse_ikev2_sa_detail, parse_ipsec_sa
+    from scripts.bootstrap_config import get_mgmt_ips
+
+    spec = _load_spec()
+    creds = _load_creds()
+
+    dev, platform = _find_device_in_spec(spec, device)
+    if not dev:
+        return {"error": f"Device '{device}' not found in spec"}
+
+    if platform != "cisco_iosxe":
+        return {
+            "error": (
+                f"cloud_tunnel_health only supports cisco_iosxe; "
+                f"'{device}' is {platform or 'unknown'}"
+            )
+        }
+
+    if platform not in NETMIKO_DEVICE_TYPE:
+        return {"error": f"Unsupported platform '{platform}' for '{device}'"}
+
+    mgmt_ips = get_mgmt_ips()
+    mgmt_ip = mgmt_ips.get(device, "")
+    if not mgmt_ip:
+        return {"error": f"No management IP for '{device}'"}
+
+    conn = _connect(device, platform, mgmt_ip, creds.device_username, creds.device_password)
+    if not conn:
+        return {"error": f"SSH connection failed to '{device}' ({mgmt_ip})"}
+
+    try:
+        ikev2_raw = conn.send_command("show crypto ikev2 sa detail")
+        ipsec_raw = conn.send_command("show crypto ipsec sa")
+    finally:
+        conn.disconnect()
+
+    tunnels = parse_ikev2_sa_detail(ikev2_raw)
+    ipsec = parse_ipsec_sa(ipsec_raw)
+
+    if not tunnels:
+        return {
+            "device": device,
+            "ike_state": "UNKNOWN",
+            "esp_state": ipsec.get("esp_state", "UNKNOWN"),
+            "peer": None,
+            "encrypted_packets": ipsec.get("encrypted_packets", 0),
+            "decrypted_packets": ipsec.get("decrypted_packets", 0),
+            "parser": "hand_rolled",
+            "raw": {"ikev2": ikev2_raw, "ipsec": ipsec_raw},
+        }
+
+    primary = tunnels[0]
+    return {
+        "device": device,
+        "ike_state": primary.get("ike_state", "UNKNOWN"),
+        "esp_state": ipsec.get("esp_state", "UNKNOWN"),
+        "peer": primary.get("peer"),
+        "tunnel_id": primary.get("tunnel_id"),
+        "encryption": primary.get("encryption"),
+        "dh_group": primary.get("dh_group"),
+        "active_sec": primary.get("active_sec"),
+        "encrypted_packets": ipsec.get("encrypted_packets", 0),
+        "decrypted_packets": ipsec.get("decrypted_packets", 0),
+        "parser": "hand_rolled",
+        "raw": {"ikev2": ikev2_raw, "ipsec": ipsec_raw},
+    }
+
+
+@mcp.tool()
+async def cloud_tunnel_health(device: str = "dc-ce-1") -> dict:
+    """Check IPsec tunnel health from a CE to a cloud strongSwan endpoint.
+
+    Runs ``show crypto ikev2 sa detail`` and ``show crypto ipsec sa`` over SSH,
+    parses with a hand-rolled parser (ntc-templates lacks IOS-XE crypto coverage),
+    and returns structured ``ike_state``/``esp_state``/packet counters. Never
+    returns ``None`` for state fields — empty/unparseable output yields ``UNKNOWN``.
+
+    Args:
+        device: CE device name (default: dc-ce-1).
+    """
+    if not device:
+        return {"error": "device is required"}
+    return await _run_with_device_lock(device, _run_cloud_tunnel_health, device)
+
+
 @mcp.tool()
 async def get_topology() -> dict:
     """Get the lab topology summary from the YAML spec.

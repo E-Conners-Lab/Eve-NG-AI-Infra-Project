@@ -8,6 +8,11 @@ dependencies = [
     "PyYAML>=6.0.1",
     "Jinja2>=3.1.3",
     "netmiko>=4.3.0",
+    # boto3 is required by scripts/push_configs._inject_aws_psk to fetch the
+    # AWS VPN PSK from Secrets Manager at push time. Module-level import in
+    # push_configs.py means dropping this dep would break ALL device pushes,
+    # not just the IPsec path — see tests/unit/test_push_configs_imports.py.
+    "boto3>=1.34.0",
 ]
 
 [project.optional-dependencies]

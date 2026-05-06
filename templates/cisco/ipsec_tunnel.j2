@@ -1,0 +1,39 @@
+{% for t in vpn_tunnels %}
+crypto ikev2 proposal AWS_VPN_PROP_{{ loop.index }}
+ encryption {{ t.encryption | default('aes-cbc-256') }}
+ integrity {{ t.integrity | default('sha256') }}
+ group {{ t.dh_group | default(14) }}
+!
+crypto ikev2 policy AWS_VPN_POL_{{ loop.index }}
+ proposal AWS_VPN_PROP_{{ loop.index }}
+!
+crypto ikev2 keyring AWS_VPN_KR_{{ loop.index }}
+ peer {{ t.remote_endpoint }}
+  address {{ t.remote_endpoint }}
+  pre-shared-key {{ psk_marker }}
+!
+crypto ikev2 profile AWS_VPN_PROF_{{ loop.index }}
+ match identity remote address {{ t.remote_endpoint }} 255.255.255.255
+ authentication remote pre-share
+ authentication local pre-share
+ keyring local AWS_VPN_KR_{{ loop.index }}
+!
+crypto ipsec transform-set AWS_VPN_TS_{{ loop.index }} esp-aes 256 esp-sha256-hmac
+ mode tunnel
+!
+crypto ipsec profile AWS_VPN_IPS_{{ loop.index }}
+ set transform-set AWS_VPN_TS_{{ loop.index }}
+ set ikev2-profile AWS_VPN_PROF_{{ loop.index }}
+!
+interface {{ t.local_interface }}
+ description to AWS strongSwan ({{ t.remote_endpoint }})
+ ip address {{ ip_no_mask(t.local_inner_ip) }} {{ cidr_to_subnet(ip_mask(t.local_inner_ip) | int) }}
+ tunnel source {{ t.tunnel_source }}
+ tunnel mode ipsec ipv4
+ tunnel destination {{ t.remote_endpoint }}
+ tunnel protection ipsec profile AWS_VPN_IPS_{{ loop.index }}
+!
+{% for p in t.routed_prefixes %}
+ip route {{ p.split('/')[0] }} {{ cidr_to_subnet(p.split('/')[1] | int) }} {{ t.local_interface }}
+{% endfor %}
+{% endfor %}

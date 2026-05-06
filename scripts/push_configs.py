@@ -16,11 +16,14 @@ import argparse
 import contextlib
 import json
 import logging
+import os
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
+import boto3
 import yaml
+from botocore.exceptions import ClientError, NoCredentialsError
 from netmiko import ConnectHandler
 from netmiko.exceptions import NetmikoAuthenticationException, NetmikoTimeoutException
 
@@ -39,6 +42,68 @@ NETMIKO_DEVICE_TYPE: dict[str, str] = {
     "cisco_iosxe": "cisco_xe",
     "fortinet_fortios": "fortinet",
 }
+
+# Marker the IPsec template emits in place of the actual PSK. Substituted at
+# push time by _inject_aws_psk so the rendered config in configs/generated/
+# stays commit-safe.
+_AWS_VPN_PSK_MARKER = "__AWS_VPN_PSK__"
+_AWS_VPN_PSK_ENV = "AWS_VPN_PSK_SECRET_ARN"
+
+
+def _inject_aws_psk(config_text: str) -> str:
+    """Replace the AWS VPN PSK marker with the secret value from AWS Secrets Manager.
+
+    Pass-through if the marker is not present (most devices). When the marker
+    is present, AWS_VPN_PSK_SECRET_ARN must be set, and the IAM principal
+    running the push must have secretsmanager:GetSecretValue on that ARN.
+
+    Returns the config text with the marker substituted. Each boto3 failure
+    mode surfaces a unique RuntimeError message so operators can act fast.
+    """
+    if _AWS_VPN_PSK_MARKER not in config_text:
+        return config_text
+
+    secret_arn = os.environ.get(_AWS_VPN_PSK_ENV)
+    if not secret_arn:
+        raise RuntimeError(
+            f"{_AWS_VPN_PSK_ENV} is not set but the rendered config contains "
+            f"{_AWS_VPN_PSK_MARKER}. Run `make sync-aws-outputs` and export "
+            f"{_AWS_VPN_PSK_ENV} from .aws_outputs.json before pushing."
+        )
+
+    client = boto3.client("secretsmanager")
+    try:
+        response = client.get_secret_value(SecretId=secret_arn)
+    except NoCredentialsError as exc:
+        raise RuntimeError(
+            "AWS credentials not available on push host — configure ~/.aws/credentials "
+            "or set AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY before pushing."
+        ) from exc
+    except ClientError as exc:
+        code = exc.response.get("Error", {}).get("Code", "")
+        if code == "AccessDeniedException":
+            raise RuntimeError(
+                f"IAM principal lacks secretsmanager:GetSecretValue on {secret_arn}"
+            ) from exc
+        if code == "ResourceNotFoundException":
+            raise RuntimeError(
+                f"secret ARN does not exist: {secret_arn} (check Terraform output)"
+            ) from exc
+        if code == "DecryptionFailure":
+            raise RuntimeError(
+                f"KMS key access denied while decrypting {secret_arn} — "
+                "the IAM principal needs kms:Decrypt on the KMS key, too."
+            ) from exc
+        raise RuntimeError(f"AWS Secrets Manager error ({code}): {exc}") from exc
+
+    psk_value = response.get("SecretString", "")
+    if not psk_value:
+        raise RuntimeError(
+            f"secret {secret_arn} returned an empty SecretString — "
+            "the secret may be binary; this push path expects SecretString."
+        )
+
+    return config_text.replace(_AWS_VPN_PSK_MARKER, psk_value)
 
 
 def _gait_log(log_file: Path, entry: dict) -> None:
@@ -123,6 +188,23 @@ def push_config_to_device(
     config_text = config_path.read_text()
     if not config_text.strip():
         print(f"  {device_name}: SKIP (empty config)")
+        return False
+
+    # Substitute the AWS VPN PSK marker if present (no-op for non-IPsec configs).
+    # Done before _gait_log so an injection failure aborts the push without
+    # logging "push_start" against a config we never actually sent.
+    try:
+        config_text = _inject_aws_psk(config_text)
+    except RuntimeError as exc:
+        print(f"  {device_name}: ERROR — PSK injection failed: {exc}")
+        _gait_log(
+            log_file,
+            {
+                "action": "push_error",
+                "device": device_name,
+                "error": f"psk_injection: {exc}",
+            },
+        )
         return False
 
     _gait_log(

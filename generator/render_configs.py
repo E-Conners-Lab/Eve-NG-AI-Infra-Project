@@ -34,8 +34,10 @@ TEMPLATE_MAP: dict[tuple[str, str], str] = {
 # Branch CE gets a separate template — identified by site context
 BRANCH_CE_TEMPLATE = "cisco/branch_router.j2"
 
-# Host role is excluded from config generation
-EXCLUDED_ROLES = ("host",)
+# Roles excluded from device config generation.
+# - "host": end-host Linux boxes get bootstrapped, not config-rendered.
+# - "cloud-vpn": its config lives in Terraform user_data (strongSwan), not Jinja templates.
+EXCLUDED_ROLES = ("host", "cloud-vpn")
 
 
 def load_spec(spec_path: Path) -> dict:
@@ -253,6 +255,15 @@ def _build_context(spec: dict, device: dict, site_key: str, section: str) -> dic
                     }
                 )
         ctx["pe_neighbors"] = pe_neighbors
+
+        # IPsec tunnels terminating on this CE — pulled from cloud_aws site.
+        # The actual PSK is injected at push time (scripts/push_configs._inject_aws_psk);
+        # the rendered config carries only the marker so it stays commit-safe.
+        cloud_site = spec.get("sites", {}).get("cloud_aws", {})
+        ctx["vpn_tunnels"] = [
+            t for t in cloud_site.get("vpn_tunnels", []) if t.get("local_device") == device["name"]
+        ]
+        ctx["psk_marker"] = "__AWS_VPN_PSK__"
 
     return ctx
 

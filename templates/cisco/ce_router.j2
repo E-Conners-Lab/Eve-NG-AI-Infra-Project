@@ -73,4 +73,7 @@ interface GigabitEthernet5
  no shutdown
 !
 {% endif %}
+{% if vpn_tunnels %}
+{% include "cisco/ipsec_tunnel.j2" %}
+{% endif %}
 end
