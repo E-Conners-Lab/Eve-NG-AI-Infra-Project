@@ -1,7 +1,8 @@
 .PHONY: test lint validate generate-spec generate-configs validate-configs \
        generate-testbed bootstrap-mgmt push-configs test-reachability deploy \
        build-snapshot validate-batfish chaos-test deploy-safe \
-       sync-aws-outputs seed-cloud-aws \
+       sync-aws-outputs seed-cloud-aws refresh-netbox \
+       start stop status teardown-eve \
        install dev-install clean
 
 # Default target
@@ -112,6 +113,54 @@ sync-aws-outputs:
 # Run after sync-aws-outputs. Idempotent.
 seed-cloud-aws:
 	python -m scripts.populate_cloud_aws
+
+# Refresh NetBox from spec + testbed and roll the NetworkOps-eve dashboard.
+# Use this after editing the lab (new device, IP change, topology rebuild).
+# Requires:
+#   - kubectl pointing at the k3s cluster (in-cluster netbox + networkops-eve)
+#   - specs/generated/lab_spec.yaml present (run `make generate-spec` first)
+# Port-forwards netbox locally, overrides .env's NETBOX_URL/TOKEN with the
+# in-cluster values, runs the three populator/sync scripts, then rolls the
+# eve dashboard so it picks up the new inventory immediately.
+refresh-netbox:
+	@set -e; \
+	echo "==> port-forwarding netbox.netbox:8080 to localhost:18080"; \
+	kubectl -n netbox port-forward svc/netbox 18080:8080 >/dev/null 2>&1 & \
+	PF_PID=$$!; \
+	trap "kill $$PF_PID 2>/dev/null" EXIT INT TERM; \
+	sleep 3; \
+	export NETBOX_URL=http://localhost:18080; \
+	export NETBOX_TOKEN=$$(kubectl -n networkops get secret networkops-secrets -o jsonpath='{.data.netbox-api-token}' | base64 -d); \
+	if [ -z "$$NETBOX_TOKEN" ]; then \
+		echo "ERROR: could not read netbox-api-token from networkops/networkops-secrets" >&2; \
+		exit 1; \
+	fi; \
+	echo "==> populate_netbox (devices, cables, prefixes from spec)"; \
+	python -m scripts.populate_netbox; \
+	echo "==> populate_netbox_enterprise (tenancy + FortiGate split)"; \
+	python -m scripts.populate_netbox_enterprise; \
+	echo "==> sync_netbox_mgmt_ips (mgmt IPs from testbed.yaml)"; \
+	python -m scripts.sync_netbox_mgmt_ips; \
+	echo "==> rolling networkops-eve api"; \
+	kubectl -n networkops-eve rollout restart deployment/api; \
+	echo "==> done"
+
+# Lab lifecycle — orchestrated startup/teardown. See ops/ for implementation.
+# `start` boots the lab via EVE-NG REST API, waits for SSH, refreshes NetBox,
+# and rolls the dashboard. `stop` halts the lab. `status` shows current state
+# across the EVE-NG host, NetBox, and the K3s deployment. `teardown-eve` is
+# the nuclear option for the K3s deployment (interactive confirmation).
+start:
+	@./ops/start.sh
+
+stop:
+	@./ops/stop.sh
+
+status:
+	@./ops/status.sh
+
+teardown-eve:
+	@./ops/teardown-eve.sh
 
 # Chaos testing — inject faults, verify agent detection, rollback (requires live devices)
 chaos-test:
