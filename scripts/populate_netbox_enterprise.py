@@ -62,6 +62,24 @@ def populate_enterprise(nb: pynetbox.api, creds: object | None = None) -> None:
         "tenant",
     )
 
+    # Separate tenant for firewalls so NetworkOps-eve (NETBOX_TENANT=ai-infra-lab)
+    # only pulls routing/switching devices. FortiGate uses different SSH creds
+    # than Arista/Cisco; Eve-NG_Agent manages it via FORTIGATE_USERNAME/PASSWORD.
+    tenant_fw = _get_or_create(
+        nb.tenancy.tenants,
+        {"slug": "ai-infra-lab-fw"},
+        {
+            "name": "AI Infrastructure Lab — Firewalls",
+            "slug": "ai-infra-lab-fw",
+            "group": tenant_group.id,
+            "description": (
+                "FortiGate firewalls — managed by Eve-NG_Agent, "
+                "excluded from NetworkOps observability scope"
+            ),
+        },
+        "tenant",
+    )
+
     # ==================================================================
     # 2. REGIONS — Geographic hierarchy
     # ==================================================================
@@ -277,7 +295,11 @@ def populate_enterprise(nb: pynetbox.api, creds: object | None = None) -> None:
                 device.rack = rack.id
                 device.position = rack_u
                 device.face = "front"
-                device.tenant = tenant.id
+                # FortiGate -> firewall tenant; everything else -> lab tenant.
+                # Falls back to lab tenant if platform isn't set yet.
+                platform_slug = getattr(device.platform, "slug", "") if device.platform else ""
+                is_fw = platform_slug == "fortinet_fortios"
+                device.tenant = (tenant_fw if is_fw else tenant).id
                 with contextlib.suppress(RequestError):
                     device.save()
 
