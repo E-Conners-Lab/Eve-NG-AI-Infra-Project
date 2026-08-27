@@ -24,7 +24,6 @@ Multi-site, multi-vendor, HA network lab running in EVE-NG on Proxmox. Managed b
 - dc-border-1 — Arista vEOS, fabric handoff, AS 65003
 - dc-border-2 — Arista vEOS, fabric handoff, AS 65004
 - dc-host-1 — Alpine Linux, 10.10.1.10 (VNI 10100)
-- dc-host-2 — Alpine Linux, 10.10.2.10 (VNI 10200)
 - Underlay: eBGP (per-leaf ASN), Overlay: iBGP EVPN (spines as RR)
 - VXLAN: VNI-to-VLAN on compute leaves, distributed anycast gateway
 
@@ -90,7 +89,9 @@ customer routes exchange without an MPLS core:
 
 ## Agent Boundary
 
-**Managed (config + monitor):** dc-spine-1, dc-spine-2, dc-leaf-1, dc-leaf-2, dc-border-1, dc-border-2, dc-fw-1, dc-fw-2, dc-ce-1, dc-host-1, dc-host-2, br-ce-1, br-host-1, dr-leaf-1, dr-leaf-2, dr-fw-1, dr-fw-2, dr-ce-1, dr-host-1
+**Managed (config + monitor):** dc-spine-1, dc-spine-2, dc-leaf-1, dc-leaf-2, dc-border-1, dc-border-2, dc-fw-1, dc-fw-2, dc-ce-1, dc-host-1, br-ce-1, br-host-1, dr-leaf-1, dr-leaf-2, dr-fw-1, dr-fw-2, dr-ce-1, dr-host-1
+
+*(Note: this list, the topology section above, and the addressing table below predate the 2026-08-26/27 FortiGate removal and customer-VRF work — the `dc-fw-*`/`dr-fw-*` entries and the DC Security section are stale. See `docs/eve-ng-deployment.md` for the currently-provisioned host set and its onboarding details.)*
 
 **Observed (read-only interfaces):** dc-border-1:Ethernet3, dc-border-2:Ethernet3 (toward firewalls), dr-leaf-1:Ethernet2, dr-leaf-2:Ethernet2 (toward firewalls)
 
