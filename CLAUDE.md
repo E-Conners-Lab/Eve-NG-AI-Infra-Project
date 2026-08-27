@@ -37,6 +37,26 @@ Multi-site, multi-vendor, HA network lab running in EVE-NG on Proxmox. Managed b
 - sp-pe-1, sp-pe-2 — Cisco C8000v, AS 64500
 - PE-to-PE is L2 transport; everything else is L3
 
+**Customer VRFs (added 2026-08-27, VRF-lite, no MPLS):** `sp-pe-1`/`sp-pe-2`
+carry two VRFs, each with its own iBGP session between the PEs so
+customer routes exchange without an MPLS core:
+- **`CUST-A`** (RD/RT `64500:100`) — the real enterprise: dc-ce-1,
+  br-ce-1, dr-ce-1 all live here, on their original PE-facing interfaces
+  (Gi1/Gi3/Gi4) and IPs. No CE-side config changed. PE-PE transit for
+  this VRF is `Gi2.100` (802.1Q vlan 100), reusing the pre-existing
+  `172.16.0.4/31`–`172.16.0.5/31` pair.
+- **`CUST-B`** (RD/RT `64500:200`) — synthetic placeholder tenant, no
+  real CE. Each PE has a stub `Loopback98` (`172.16.99.1/32` on
+  sp-pe-1, `172.16.99.2/32` on sp-pe-2) advertised into its own vrf's
+  iBGP session over `Gi2.200` (vlan 200, `172.16.0.14/31`–
+  `172.16.0.15/31`). Exists purely to prove customer isolation: the
+  global table and `CUST-A` carry zero routes to `172.16.99.0/24`, and
+  `CUST-B` carries none of the enterprise's `10.x` prefixes.
+- `Gi2` (the physical PE-PE link) itself holds no IP — it's a bare
+  802.1Q trunk carrying both subinterfaces. `router bgp 64500`'s global
+  address-family now only carries the PE loopbacks; no customer routes
+  live in the PE global table, matching real SP-PE behavior.
+
 ### Branch-01
 - br-ce-1 — Cisco C8000v, AS 65100 (dual-homed to sp-pe-1/sp-pe-2)
 - br-host-1 — Alpine Linux, 10.20.1.10
@@ -64,6 +84,9 @@ Multi-site, multi-vendor, HA network lab running in EVE-NG on Proxmox. Managed b
 | Branch | 10.20.0.0/16 |
 | DR overlay | 10.30.0.0/16 |
 | DR underlay | 10.31.0.0/24 |
+| PE-PE `CUST-A` transit (Gi2.100) | 172.16.0.4/31–172.16.0.5/31 |
+| PE-PE `CUST-B` transit (Gi2.200) | 172.16.0.14/31–172.16.0.15/31 |
+| `CUST-B` placeholder-tenant stub loopbacks | 172.16.99.0/24 |
 
 ## Agent Boundary
 
